@@ -1,0 +1,29 @@
+database:
+  host: localhost
+  port: 5050
+  name: ccd_data
+  username: ccd
+  password: ccd
+  driver: postgres
+  sslmode: disable
+period:
+  startTime: "2023-01-01T09:00:00.000" # considered GMT
+  endTime:   "2023-04-18T09:59:59.000"
+  searchWindow: 1 # Search results for days
+rule:
+  active: "samevalueafterchange,fieldchangecount"
+scan:
+  jurisdiction: BEFTA_JURISDICTION_3
+  caseType: BEFTA_CASETYPE_3_2
+  concurrent:
+    event:
+      thresholdMilliseconds: 10000
+  fieldChange:
+    threshold: 25
+  report:
+    enabled: true
+    includeEmptyChange: false
+    maskValue: false
+log:
+  level: info
+  type: out
