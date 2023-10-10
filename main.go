@@ -28,6 +28,8 @@ func main() {
 
 	flag.Parse()
 
+	fmt.Printf("Using the target configuration file: %s\n", *configFile)
+
 	configurations := loadConfig(*configFile)
 
 	initiateLogger(configurations.Level, configurations.Type)
@@ -77,17 +79,23 @@ func orchestrateEventComparisons(service *domain.Service, configurations *config
 			caseTypes := jurisdictionWithCaseTypes[jurisdiction]
 			for _, caseType := range caseTypes {
 				log.Info().Msgf("Scanning - jurisdiction: %s and caseType: %s", jurisdiction, caseType)
-				performEventComparison(service, jurisdiction, caseType, startTime, endTime)
+				performEventComparisonByJurisdiction(service, jurisdiction, caseType, startTime, endTime)
 			}
 		}
 		return
 	}
 
-	performEventComparison(service, configurations.Jurisdiction, configurations.CaseType, startTime, endTime)
+	performEventComparisonByJurisdiction(service, configurations.Jurisdiction, configurations.CaseType, startTime, endTime)
 }
 
-func performEventComparison(service *domain.Service, jurisdiction string, caseType string, startTime time.Time, endTime time.Time) {
-	service.CompareEventsInImpactPeriod(jurisdiction, caseType, startTime, endTime)
+func performEventComparisonByJurisdiction(service *domain.Service, jurisdiction string, caseType string, startTime time.Time, endTime time.Time) {
+	comparison := domain.Comparison{
+		Jurisdiction:        jurisdiction,
+		CaseTypeId:          caseType,
+		StartTime:           startTime,
+		SearchPeriodEndTime: endTime,
+	}
+	service.CompareEventsInImpactPeriod(comparison)
 }
 
 func enableAndManageProfiles() {
@@ -117,7 +125,7 @@ func initiateLogger(logLevel, logType string) {
 	if logType == "file" {
 		fileWriter, err := openLogFile()
 		if err != nil {
-			log.Warn().Msgf("Error opening log file: %s, continuing with 'info'", err)
+			log.Warn().Msgf("err opening log file: %s, continuing with 'info'", err)
 		} else {
 			log.Logger = zerolog.New(fileWriter).With().Timestamp().Logger()
 		}
@@ -140,7 +148,7 @@ func readCSVIntoMap(csvFilePath string) map[string][]string {
 
 	csvFile, err := os.Open(csvFilePath)
 	if err != nil {
-		log.Fatal().Msgf("Error opening CSV file: %s", err)
+		log.Fatal().Msgf("err opening CSV file: %s", err)
 	}
 	defer csvFile.Close()
 
@@ -169,7 +177,7 @@ func readCSVIntoMap(csvFilePath string) map[string][]string {
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Fatal().Msgf("Error reading CSV file: %s", err)
+		log.Fatal().Msgf("err reading CSV file: %s", err)
 	}
 
 	return csvDataMap

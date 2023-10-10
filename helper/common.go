@@ -36,6 +36,6 @@ func FormatTimeStamp(sourceTimeStamp time.Time) string {
 
 func MustUnmarshal(data []byte, v interface{}) {
 	if err := json.Unmarshal(data, v); err != nil {
-		panic(fmt.Sprintf("Error occurred while processing the JSON: %s", err))
+		panic(fmt.Sprintf("err occurred while processing the JSON: %s", err))
 	}
 }

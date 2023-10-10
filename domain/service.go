@@ -36,42 +36,93 @@ func NewService(configuration *config.Configurations, activeRules *[]comparator.
 	}
 }
 
-type ComparisonResult struct {
-	TransactionID string
-	Result        string
-	Error         error
+type Comparison struct {
+	Jurisdiction        string
+	CaseTypeId          string
+	StartTime           time.Time
+	SearchPeriodEndTime time.Time
 }
 
-func (s Service) CompareEventsInImpactPeriod(jurisdiction, caseTypeId string, startTime, endTime time.Time) {
-	var wg sync.WaitGroup
+type comparisonWork struct {
+	transactionId string
+	comparison    Comparison
+}
 
-	resultChan := make(chan ComparisonResult)
+type comparisonResult struct {
+	transactionId string
+	result        string
+	err           error
+}
+
+func (s Service) CompareEventsInImpactPeriod(comparison Comparison) {
+	resultChan := make(chan comparisonResult)
+	defer func() {
+		close(resultChan)
+	}()
+
+	processResults(resultChan)
+
+	s.startComparisonWorkers(comparison, resultChan)
+}
+
+func processResults(resultChan <-chan comparisonResult) {
+	go func() {
+		for result := range resultChan {
+			if result.err != nil {
+				log.Error().Msgf("tid:%s - ERROR: %s", result.transactionId, result.err)
+			} else {
+				log.Info().Msgf("tid:%s - result: %s", result.transactionId, result.result)
+			}
+		}
+	}()
+}
+
+func (s Service) startComparisonWorkers(comparison Comparison, resultChan chan<- comparisonResult) {
+	var wg sync.WaitGroup
+	s.processComparisonWork(&wg, comparison, resultChan)
+	wg.Wait()
+}
+
+func (s Service) processComparisonWork(wg *sync.WaitGroup, comparison Comparison, resultChan chan<- comparisonResult) {
+	numberOfWorker := s.configuration.Worker.Pool
+	workers := make(chan comparisonWork, numberOfWorker)
+	defer closeWorkers(workers)
+
+	for wid := 1; wid <= numberOfWorker; wid++ {
+		wg.Add(1)
+		go s.compareAndSaveEvents(wid, wg, workers, resultChan)
+	}
+
+	startTime := comparison.StartTime
+	endTime := comparison.SearchPeriodEndTime
 
 	for !startTime.After(endTime) {
 		transactionId := uuid.New().String()
 		searchPeriodEndTime := calculateSearchPeriodEndTime(startTime, endTime, s.configuration.SearchWindow)
+		comparison.StartTime = startTime
+		comparison.SearchPeriodEndTime = searchPeriodEndTime
 
-		wg.Add(1)
-		go s.compareAndSaveEvents(&wg, resultChan, transactionId, jurisdiction, caseTypeId, startTime, searchPeriodEndTime)
+		workers <- comparisonWork{
+			transactionId: transactionId,
+			comparison:    comparison,
+		}
 
 		startTime = searchPeriodEndTime.Add(1 * time.Nanosecond)
 	}
+}
 
-	go func() {
-		wg.Wait()
-		close(resultChan)
-	}()
-
-	for result := range resultChan {
-		if result.Error != nil {
-			log.Error().Msgf("tid:%s - ERROR: %s", result.TransactionID, result.Error)
-		} else {
-			log.Info().Msgf("tid:%s - Result: %s", result.TransactionID, result.Result)
-		}
-	}
+func closeWorkers(workers chan comparisonWork) {
+	log.Info().Msgf("All jobs have been sent successfully to the workers")
+	close(workers)
 }
 
 func calculateSearchPeriodEndTime(startTime, endTime time.Time, searchWindow int) time.Time {
+	if searchWindow <= 0 {
+		searchWindow = 0
+	} else {
+		searchWindow = searchWindow - 1
+	}
+
 	searchPeriodEndTime := startTime.AddDate(0, 0, searchWindow)
 	searchPeriodEndTime = time.Date(searchPeriodEndTime.Year(), searchPeriodEndTime.Month(),
 		searchPeriodEndTime.Day(), hoursInDay-1, minutesInHour-1, secondsInMinute-1, nanoseconds, searchPeriodEndTime.Location())
@@ -83,85 +134,90 @@ func calculateSearchPeriodEndTime(startTime, endTime time.Time, searchWindow int
 	return searchPeriodEndTime
 }
 
-func (s Service) compareAndSaveEvents(wg *sync.WaitGroup, resultChan chan ComparisonResult, transactionId, jurisdiction,
-	caseTypeId string, startTime, endTime time.Time) {
-	defer wg.Done()
+func (s Service) compareAndSaveEvents(workerId int, wg *sync.WaitGroup, workers <-chan comparisonWork, resultChan chan<- comparisonResult) {
+	defer func(id int) {
+		log.Info().Msgf("Worker %d has completed its work and is being deferred.", id)
+		wg.Done()
+	}(workerId)
 
-	logEventComparisonStart(transactionId, jurisdiction, caseTypeId, startTime, endTime)
+	for w := range workers {
+		logEventComparisonStart(workerId, w)
+		cases, err := s.queryRepo.findCasesByJurisdictionInImpactPeriod(w.comparison)
+		if err != nil {
+			handleError(resultChan, w.transactionId, err, "finding cases")
+			continue
+		}
 
-	cases, err := s.queryRepo.findCasesByJurisdictionInImpactPeriod(jurisdiction, caseTypeId, startTime, endTime)
-	if err != nil {
-		handleError(resultChan, transactionId, err, "finding cases")
-		return
+		if len(cases) == 0 {
+			noDataMessage := fmt.Sprintf("No case data returned for jurisdiction: %s with caseTypeId: %s",
+				w.comparison.Jurisdiction, w.comparison.CaseTypeId)
+			sendResult(resultChan, w.transactionId, noDataMessage)
+			continue
+		}
+
+		logParsingCaseData(w.transactionId, w.comparison.Jurisdiction, w.comparison.CaseTypeId, len(cases))
+
+		casesWithEventDetails := getCasesWithEventDetails(cases)
+
+		logEventComparisonStarted(w.transactionId)
+
+		// Compare events by case reference
+		eventFieldChanges := comparator.CompareEventsByCaseReference(w.transactionId, casesWithEventDetails)
+		if len(eventFieldChanges) == 0 {
+			resultMessage := fmt.Sprintf("No differences found in events for specified cases based on the search criteria provided")
+			sendResult(resultChan, w.transactionId, resultMessage)
+			continue
+		}
+
+		analyzeResult := comparator.NewEventChangesAnalyze(s.activeRules, eventFieldChanges).AnalyzeEventFieldChanges()
+
+		if !s.configuration.Report.Enabled {
+			resultMessage := fmt.Sprintf("Analysis completed without saving the report. Total records in analyzeResult: %d. Total number of field change: %d",
+				analyzeResult.Size(), len(eventFieldChanges))
+			sendResult(resultChan, w.transactionId, resultMessage)
+			continue
+		}
+
+		if err := s.saveReport(w.transactionId, analyzeResult, eventFieldChanges); err != nil {
+			handleError(resultChan, w.transactionId, err, "saving the report")
+			continue
+		}
+
+		sendResult(resultChan, w.transactionId, "Operation completed successfully.")
 	}
-
-	if len(cases) == 0 {
-		noDataMessage := fmt.Sprintf("No case data returned for jurisdiction: %s with caseTypeId: %s", jurisdiction, caseTypeId)
-		sendResult(resultChan, transactionId, noDataMessage)
-		return
-	}
-
-	logParsingCaseData(transactionId, jurisdiction, caseTypeId, len(cases))
-
-	casesWithEventDetails := getCasesWithEventDetails(cases)
-
-	logEventComparisonStarted(transactionId)
-
-	// Compare events by case reference
-	eventFieldChanges := comparator.CompareEventsByCaseReference(transactionId, casesWithEventDetails)
-	if len(eventFieldChanges) == 0 {
-		resultMessage := fmt.Sprintf("No differences found in events for specified cases based on the search criteria provided")
-		sendResult(resultChan, transactionId, resultMessage)
-		return
-	}
-
-	analyzeResult := comparator.NewEventChangesAnalyze(s.activeRules, eventFieldChanges).AnalyzeEventFieldChanges()
-
-	if !s.configuration.Report.Enabled {
-		resultMessage := fmt.Sprintf("Analysis completed without saving the report. Total records in analyzeResult: %d. Total number of field change: %d",
-			analyzeResult.Size(), len(eventFieldChanges))
-		sendResult(resultChan, transactionId, resultMessage)
-		return
-	}
-
-	if err := s.saveReport(transactionId, analyzeResult, eventFieldChanges); err != nil {
-		handleError(resultChan, transactionId, err, "saving the report")
-		return
-	}
-
-	sendResult(resultChan, transactionId, "Operation completed successfully.")
 }
 
-func logEventComparisonStart(transactionID, jurisdiction, caseTypeID string, startTime, endTime time.Time) {
-	log.Info().Msgf("tid:%s - Event comparison started: start period: %s, end period: %s with jurisdiction: %s and caseType: %s",
-		transactionID, helper.FormatTimeStamp(startTime), helper.FormatTimeStamp(endTime), jurisdiction, caseTypeID)
+func logEventComparisonStart(workerId int, w comparisonWork) {
+	log.Info().Msgf("tid:%s -- Event comparison started in worker %d: start period: %s, end period: %s with jurisdiction: %s and caseType: %s",
+		w.transactionId, workerId, helper.FormatTimeStamp(w.comparison.StartTime),
+		helper.FormatTimeStamp(w.comparison.SearchPeriodEndTime), w.comparison.Jurisdiction, w.comparison.CaseTypeId)
 }
 
-func logParsingCaseData(transactionID, jurisdiction, caseTypeID string, numCases int) {
+func logParsingCaseData(transactionId, jurisdiction, caseTypeID string, numCases int) {
 	log.Info().Msgf("tid:%s - Parsing case data with jurisdiction %s and caseType %s with %d case events",
-		transactionID, jurisdiction, caseTypeID, numCases)
+		transactionId, jurisdiction, caseTypeID, numCases)
 }
 
-func logEventComparisonStarted(transactionID string) {
-	log.Info().Msgf("tid:%s - Event comparing started...", transactionID)
+func logEventComparisonStarted(transactionId string) {
+	log.Info().Msgf("tid:%s - Event comparing started...", transactionId)
 }
 
-func handleError(resultChan chan ComparisonResult, transactionID string, err error, context string) {
-	sendError(resultChan, transactionID, errors.Wrap(err, fmt.Sprintf("error occurred while %s", context)))
+func handleError(resultChan chan<- comparisonResult, transactionId string, err error, context string) {
+	sendError(resultChan, transactionId, errors.Wrap(err, fmt.Sprintf("error occurred while %s", context)))
 }
 
-func sendResult(resultChan chan ComparisonResult, transactionId, resultFormat string, args ...interface{}) {
-	result := ComparisonResult{
-		TransactionID: transactionId,
-		Result:        fmt.Sprintf(resultFormat, args...),
+func sendResult(resultChan chan<- comparisonResult, transactionId, resultFormat string, args ...interface{}) {
+	result := comparisonResult{
+		transactionId: transactionId,
+		result:        fmt.Sprintf(resultFormat, args...),
 	}
 	resultChan <- result
 }
 
-func sendError(resultChan chan ComparisonResult, transactionId string, error error) {
-	result := ComparisonResult{
-		TransactionID: transactionId,
-		Error:         error,
+func sendError(resultChan chan<- comparisonResult, transactionId string, error error) {
+	result := comparisonResult{
+		transactionId: transactionId,
+		err:           error,
 	}
 	resultChan <- result
 }
@@ -175,7 +231,7 @@ func (s Service) saveReport(transactionId string, analyzeResult *comparator.Anal
 
 		numberOfRecord := len(eventDataReportEntities)
 		if numberOfRecord == 0 {
-			log.Info().Msg("No record returned from PrepareReportEntities")
+			log.Info().Msg("No records were returned from PrepareReportEntities.")
 			return nil
 		}
 
