@@ -11,6 +11,7 @@ import (
 type Configurations struct {
 	Database
 	Period
+	Worker
 	Rule
 	Scan
 	Log
@@ -30,6 +31,10 @@ type Period struct {
 	StartTime    string
 	EndTime      string
 	SearchWindow int
+}
+
+type Worker struct {
+	Pool int
 }
 
 type Rule struct {
@@ -73,7 +78,7 @@ func loadConfig(path, fileName string) *Configurations {
 	viper.SetConfigName(fileName)
 	viper.AddConfigPath(path)
 	if err := viper.ReadInConfig(); err != nil {
-		log.Fatal().Msgf("Error reading config file: %s", err)
+		log.Fatal().Msgf("err reading config file: %s", err)
 	}
 
 	if err := bindEnvironmentVariables(); err != nil {

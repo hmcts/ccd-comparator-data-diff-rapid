@@ -67,7 +67,7 @@ func TestSaveAllEventDataReportCommitError(t *testing.T) {
 
 	saveRepo := NewSaveRepository(mockDB)
 
-	// Error during commit
+	// err during commit
 	mockTx.On("NamedExec", mock.Anything, mock.Anything).Return(result{}, nil).Once()
 	mockTx.On("Commit").Return(errors.New("commit error")).Once()
 	mockTx.On("Rollback").Return(nil).Once()

@@ -17,6 +17,9 @@ func setUp() {
 		Rule: config.Rule{
 			Active: "samevalueafterchange,fieldchangecount",
 		},
+		Worker: config.Worker{
+			Pool: 5,
+		},
 		Scan: config.Scan{
 			Concurrent: struct {
 				Event struct {

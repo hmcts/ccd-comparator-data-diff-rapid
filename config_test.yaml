@@ -10,6 +10,8 @@ period:
   startTime: "2023-01-01T09:00:00.000" # considered GMT
   endTime:   "2023-04-18T09:59:59.000"
   searchWindow: 1 # Search results for days
+worker:
+  pool: 30
 rule:
   active: "samevalueafterchange,fieldchangecount"
 scan:

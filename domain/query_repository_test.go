@@ -46,7 +46,13 @@ func TestFindCasesByJurisdictionInImpactPeriod(t *testing.T) {
 			*casesPtr = expectedCases
 		})
 
-	cases, err := queryRepo.findCasesByJurisdictionInImpactPeriod(jurisdiction, caseTypeId, startTime, endTime)
+	c := Comparison{
+		Jurisdiction:        jurisdiction,
+		CaseTypeId:          caseTypeId,
+		StartTime:           startTime,
+		SearchPeriodEndTime: endTime,
+	}
+	cases, err := queryRepo.findCasesByJurisdictionInImpactPeriod(c)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, cases)
@@ -73,7 +79,13 @@ func TestFindCasesByJurisdictionInImpactPeriodReturnError(t *testing.T) {
 		mock.Anything).
 		Return(expectedError)
 
-	cases, err := queryRepo.findCasesByJurisdictionInImpactPeriod(jurisdiction, caseTypeId, startTime, endTime)
+	c := Comparison{
+		Jurisdiction:        jurisdiction,
+		CaseTypeId:          caseTypeId,
+		StartTime:           startTime,
+		SearchPeriodEndTime: endTime,
+	}
+	cases, err := queryRepo.findCasesByJurisdictionInImpactPeriod(c)
 
 	unwrappedErr := errors.Cause(err)
 

@@ -7,7 +7,7 @@ import (
 )
 
 type QueryRepository interface {
-	findCasesByJurisdictionInImpactPeriod(jurisdiction, caseTypeId string, startTime, endTime time.Time) ([]CaseDataEntity, error)
+	findCasesByJurisdictionInImpactPeriod(comparison Comparison) ([]CaseDataEntity, error)
 }
 
 type queryRepository struct {
@@ -31,8 +31,7 @@ func NewQueryRepository(db store.DB) QueryRepository {
 	return &queryRepository{db: db}
 }
 
-func (r queryRepository) findCasesByJurisdictionInImpactPeriod(jurisdiction, caseTypeId string,
-	startTime, endTime time.Time) ([]CaseDataEntity, error) {
+func (r queryRepository) findCasesByJurisdictionInImpactPeriod(comparison Comparison) ([]CaseDataEntity, error) {
 	var caseData []CaseDataEntity
 
 	err := r.db.Select(&caseData, `SELECT cd.id as case_id, cd.created_date as case_created_date,
@@ -44,7 +43,7 @@ func (r queryRepository) findCasesByJurisdictionInImpactPeriod(jurisdiction, cas
 								AND cd.case_type_id =  $2
 								AND cd.created_date >= $3
 								AND cd.created_date <= $4`,
-		jurisdiction, caseTypeId, startTime, endTime)
+		comparison.Jurisdiction, comparison.CaseTypeId, comparison.StartTime, comparison.SearchPeriodEndTime)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "error in findCasesByJurisdictionInImpactPeriod()")
