@@ -15,8 +15,8 @@ worker:
 rule:
   active: "samevalueafterchange,fieldchangecount"  # Active rules for event comparison
 scan:
-  jurisdiction: DIVORCE  # Jurisdiction for scanning
-  caseType: NFD # Case type for scanning
+  jurisdiction: BEFTA_JURISDICTION_3  # Jurisdiction for scanning
+  caseType: BEFTA_CASETYPE_3_1 # Case type for scanning
   concurrent:
     event:
       thresholdMilliseconds: 10000 # Threshold time in milliseconds for concurrent events
