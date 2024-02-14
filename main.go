@@ -60,7 +60,7 @@ func orchestrateEventComparisons(service *domain.Service, configurations *config
 	startTime := helper.MustParseTime("", configurations.StartTime)
 
 	var endTime time.Time
-	if configurations.EndTime == "" {
+	if strings.TrimSpace(configurations.EndTime) == "" {
 		endTime = time.Now()
 	} else {
 		endTime = helper.MustParseTime("", configurations.EndTime)
