@@ -136,7 +136,7 @@ func Test_compareNodes(t *testing.T) {
 					CreatedDate:     createdDate,
 					SourceEventId:   2,
 					SourceEventName: "ComplexEvent",
-					OperationType:   helper.ArrayModified,
+					OperationType:   helper.ArrayExtended,
 				},
 			},
 		},

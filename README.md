@@ -60,8 +60,8 @@ Use as follows: `go run . -help`
   This should be passed in as a LocalDateTime object in the format "yyyy-MM-dd'T'HH:mm:ss".
   * **Case Type**: The case type for filtering cases by. This should be passed in as a string representing the case type.
 
-* **Include Empty Change**:  A boolean flag indicating whether to include empty change lines in the Excel report, 
+* **Include Empty Change**:  A boolean flag indicating whether to include empty change lines in the report, 
 regardless of whether the change violates the rule or not. This should be passed in as true or false. 
-If set to true, the Excel report will include all change lines, which can be useful for narrow filters or when using with case reference search, 
-as it may produce a large number of rows in the Excel report. 
+If set to true, the report will include all change lines, which can be useful for narrow filters or when using with case reference search, 
+as it may produce a large number of rows in the report. 
 
