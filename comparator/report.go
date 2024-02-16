@@ -25,7 +25,7 @@ type EventDataReportEntity struct {
 }
 
 func PrepareReportEntities(eventDifferences map[string][]EventFieldChange, analyzeResult *AnalyzeResult, configurations *config.Configurations) ([]EventDataReportEntity, error) {
-	if analyzeResult.IsEmpty() {
+	if analyzeResult.IsEmpty() && !configurations.Report.IncludeEmptyChange {
 		return nil, nil
 	}
 

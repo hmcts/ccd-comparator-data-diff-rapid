@@ -56,9 +56,11 @@ func (r SameValueAfterChangeRule) CheckForViolation(fieldName string,
 			return NewPair(sourceEventId, helper.FormatTimeStamp(previousDate)+"->"+message)
 		}
 
-		previousSourceEventId = difference.SourceEventId
-		previousValue = oldValue
-		previousDate = currentDate
+		if difference.OperationType != helper.NoChange {
+			previousSourceEventId = difference.SourceEventId
+			previousValue = oldValue
+			previousDate = currentDate
+		}
 	}
 
 	return nil

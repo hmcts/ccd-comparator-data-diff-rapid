@@ -39,7 +39,7 @@ func (r queryRepository) findCasesByJurisdictionInImpactPeriod(comparison Compar
 							ce.case_data_id as case_data_id, ce.id as event_id, ce.event_id as event_name, 
 							ce.created_date as event_created_date, ce.data as event_data
 							FROM case_data cd inner join case_event ce on cd.id = ce.case_data_id
-							WHERE cd.jurisdiction = $1 --and cd.reference = 1681802449198475
+							WHERE cd.jurisdiction = $1 --and cd.reference = 1694712444849169
 								AND cd.case_type_id =  $2
 								AND cd.created_date >= $3
 								AND cd.created_date <= $4`,

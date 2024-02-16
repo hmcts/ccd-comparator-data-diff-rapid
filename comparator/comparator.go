@@ -109,6 +109,7 @@ func compareJsonNodes(base, compareWith interface{}, differences *differences, p
 			if compareValue, ok := compareNode[key]; ok {
 				compareJsonNodes(value, compareValue, differences, currentPath, eventId, createdDate, eventName)
 			} else {
+				//compareNode[key] = nil
 				difference := createDifference(value, "", eventId, createdDate, helper.Deleted, eventName)
 				differences.recordDifferenceAtPath(currentPath, difference)
 			}
@@ -124,8 +125,11 @@ func compareJsonNodes(base, compareWith interface{}, differences *differences, p
 		baseArray, isBaseArray := convertToSlice(base)
 		compareArray, isCompareArray := convertToSlice(compareWith)
 		if isBaseArray && isCompareArray {
-			if len(baseArray) != len(compareArray) {
-				difference := createDifference(base, compareWith, eventId, createdDate, helper.ArrayModified, eventName)
+			if len(baseArray) > len(compareArray) {
+				difference := createDifference(base, compareWith, eventId, createdDate, helper.ArrayShrunk, eventName)
+				differences.recordDifferenceAtPath(parentPath, difference)
+			} else if len(baseArray) < len(compareArray) {
+				difference := createDifference(base, compareWith, eventId, createdDate, helper.ArrayExtended, eventName)
 				differences.recordDifferenceAtPath(parentPath, difference)
 			} else {
 				for i := 0; i < len(baseArray); i++ {
@@ -136,6 +140,9 @@ func compareJsonNodes(base, compareWith interface{}, differences *differences, p
 		} else {
 			if !compareWithEqual(base, compareWith) {
 				difference := createDifference(base, compareWith, eventId, createdDate, helper.Modified, eventName)
+				differences.recordDifferenceAtPath(parentPath, difference)
+			} else {
+				difference := createDifference(base, compareWith, eventId, createdDate, helper.NoChange, eventName)
 				differences.recordDifferenceAtPath(parentPath, difference)
 			}
 		}
@@ -175,10 +182,23 @@ func convertToSlice(v interface{}) ([]interface{}, bool) {
 }
 
 func (d *differences) recordDifferenceAtPath(path string, difference EventFieldChange) {
+	if !isNotEmpty(difference.OldRecord, difference.NewRecord) {
+		difference.OperationType = helper.NoChange
+	}
+
 	if _, ok := d.differencesByPath[path]; !ok {
-		d.differencesByPath[path] = make([]EventFieldChange, 0)
+		if difference.OperationType != helper.NoChange {
+			d.differencesByPath[path] = make([]EventFieldChange, 0)
+		} else {
+			return
+		}
 	}
 	d.differencesByPath[path] = append(d.differencesByPath[path], difference)
+}
+
+func isNotEmpty(oldValue, newValue string) bool {
+	return (oldValue != "" && oldValue != "null" && oldValue != "{}") ||
+		(newValue != "" && newValue != "null" && newValue != "{}")
 }
 
 func compareWithEqual(base, compareWith interface{}) bool {
