@@ -13,6 +13,9 @@ const (
 	Deleted       OperationType = "DELETED"
 	Modified      OperationType = "MODIFIED"
 	ArrayModified OperationType = "ARRAY_MODIFIED"
+	ArrayExtended OperationType = "ARRAY_EXTENDED"
+	ArrayShrunk   OperationType = "ARRAY_SHRUNK"
+	NoChange      OperationType = "NO_CHANGE"
 )
 
 const defaultTimeStampLayout = "2006-01-02T15:04:05.999999"
