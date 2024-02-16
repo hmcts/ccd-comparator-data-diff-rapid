@@ -8,10 +8,10 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const batchSize = 100
+const defaultBatchSize = 100
 
 type SaveRepository interface {
-	saveAllEventDataReport(eventDataReportEntities []comparator.EventDataReportEntity) error
+	saveAllEventDataReport(batchSize int, eventDataReportEntities []comparator.EventDataReportEntity) error
 }
 
 type saveRepository struct {
@@ -22,9 +22,11 @@ func NewSaveRepository(db store.DB) SaveRepository {
 	return &saveRepository{db: db}
 }
 
-func (s saveRepository) saveAllEventDataReport(eventDataReportEntities []comparator.EventDataReportEntity) error {
+func (s saveRepository) saveAllEventDataReport(batchSize int, eventDataReportEntities []comparator.EventDataReportEntity) error {
 	totalEntities := len(eventDataReportEntities)
-
+	if batchSize == 0 {
+		batchSize = defaultBatchSize
+	}
 	tx := s.db.MustBegin()
 	for i := 0; i < totalEntities; i += batchSize {
 		end := i + batchSize
@@ -34,10 +36,10 @@ func (s saveRepository) saveAllEventDataReport(eventDataReportEntities []compara
 
 		batch := eventDataReportEntities[i:end]
 
-		res, err := tx.NamedExec(`INSERT INTO event_data_report (
+		res, err := tx.NamedExec(`INSERT INTO event_data_report_v3 (
 			event_id, event_name, case_type_id, reference, field_name, change_type,
 			old_record, new_record, previous_event_created_date, event_created_date,
-			analyze_result, potential_risk)
+			analyze_result_detail, potential_risk)
 		VALUES (:event_id, :event_name, :case_type_id, :reference, :field_name, :change_type, :old_record, :new_record,
 			:previous_event_created_date, :event_created_date, :analyze_result, :potential_risk)`, batch)
 
