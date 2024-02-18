@@ -19,13 +19,14 @@ scan:
   caseType: BEFTA_CASETYPE_3_1 # Case type for scanning
   concurrent:
     event:
-      thresholdMilliseconds: 10000 # Threshold time in milliseconds for concurrent events
+      thresholdMilliseconds: 10000 # Threshold time in milliseconds for concurrent events. Set to -1 to disable threshold
   fieldChange:
     threshold: 25 # Threshold for field change detection
   report:
     enabled: true # Enable or disable report generation
     includeEmptyChange: false
     maskValue: false # Mask sensitive values in the report
+    includeNoChange: false
 log:
   level: info
   type: out # Log output type can be out or file

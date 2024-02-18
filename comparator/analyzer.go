@@ -31,9 +31,11 @@ func (e *EventChangesAnalyze) AnalyzeEventFieldChanges() *AnalyzeResult {
 func (e *EventChangesAnalyze) analyzeFieldDifferencesForCase(combinedReference string, fieldChanges []EventFieldChange) {
 	fieldName := getFieldFromCombinedReference(combinedReference)
 	for _, rule := range *e.activeRules {
-		pair := rule.CheckForViolation(fieldName, fieldChanges)
-		if pair != nil {
-			e.addAnalyzeDetail(combinedReference, pair)
+		pairList := rule.CheckForViolation(fieldName, fieldChanges)
+		if len(pairList) > 0 {
+			for _, pair := range pairList {
+				e.addAnalyzeDetail(combinedReference, pair)
+			}
 		}
 	}
 }

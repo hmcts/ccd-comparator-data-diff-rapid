@@ -3,11 +3,10 @@ package comparator
 import (
 	"ccd-comparator-data-diff-rapid/helper"
 	"fmt"
-	"time"
 )
 
 type Rule interface {
-	CheckForViolation(fieldName string, fieldChanges []EventFieldChange) *Pair[int64, string]
+	CheckForViolation(fieldName string, fieldChanges []EventFieldChange) []*Pair[int64, string]
 }
 
 type SameValueAfterChangeRule struct {
@@ -30,40 +29,35 @@ func NewFieldChangeCountRule(fieldChangeThreshold int) *FieldChangeCountRule {
 	return &FieldChangeCountRule{fieldChangeThreshold}
 }
 
-func (r SameValueAfterChangeRule) CheckForViolation(fieldName string,
-	fieldChanges []EventFieldChange) *Pair[int64, string] {
+func (r SameValueAfterChangeRule) CheckForViolation(fieldName string, fieldChanges []EventFieldChange) []*Pair[int64,
+	string] {
+	var violations []*Pair[int64, string]
 
-	var previousDate time.Time
-	var previousValue = "\n\r"
-	var previousSourceEventId int64
-
-	for _, difference := range fieldChanges {
-		oldValue := difference.OldRecord
-		newValue := difference.NewRecord
-		currentDate := difference.CreatedDate
-
-		if newValue == previousValue && !previousDate.IsZero() &&
-			(r.concurrentEventThresholdMilliseconds == 0 ||
-				currentDate.Sub(previousDate).Milliseconds() <= r.concurrentEventThresholdMilliseconds) {
-
-			sourceEventId := difference.SourceEventId
-			message := fmt.Sprintf("field %s changed in event id %d with the value %s on %s. "+
-				"The field %s was updated back to old value %s in event id %d on %s",
-				fieldName, previousSourceEventId, processInputValue(oldValue, r.isScanReportMask),
-				helper.FormatTimeStamp(previousDate), fieldName, processInputValue(newValue, r.isScanReportMask),
-				sourceEventId, helper.FormatTimeStamp(currentDate))
-
-			return NewPair(sourceEventId, helper.FormatTimeStamp(previousDate)+"->"+message)
-		}
-
-		if difference.OperationType != helper.NoChange {
-			previousSourceEventId = difference.SourceEventId
-			previousValue = oldValue
-			previousDate = currentDate
+	for currentIndex, currentChange := range fieldChanges {
+		if currentChange.OperationType != helper.NoChange {
+			for previousIndex := 0; previousIndex < currentIndex; previousIndex++ {
+				previousChange := fieldChanges[previousIndex]
+				if previousChange.OperationType != helper.NoChange {
+					if currentChange.NewRecord == previousChange.OldRecord {
+						timeDifference := currentChange.CreatedDate.Sub(previousChange.CreatedDate).Milliseconds()
+						if r.concurrentEventThresholdMilliseconds == -1 || timeDifference <= r.
+							concurrentEventThresholdMilliseconds {
+							sourceEventId := currentChange.SourceEventId
+							message := fmt.Sprintf("Field '%s' changed to '%s' in event id %d on %s, "+
+								"but reverted back to the previous value '%s' in event id %d on %s",
+								fieldName, processInputValue(previousChange.NewRecord, r.isScanReportMask),
+								previousChange.SourceEventId, helper.FormatTimeStamp(previousChange.CreatedDate),
+								processInputValue(currentChange.NewRecord, r.isScanReportMask), currentChange.SourceEventId,
+								helper.FormatTimeStamp(currentChange.CreatedDate))
+							violations = append(violations, NewPair(sourceEventId, message))
+						}
+					}
+				}
+			}
 		}
 	}
 
-	return nil
+	return violations
 }
 
 func processInputValue(input string, isScanReportMask bool) string {
@@ -79,7 +73,8 @@ func processInputValue(input string, isScanReportMask bool) string {
 }
 
 func (r FieldChangeCountRule) CheckForViolation(fieldName string,
-	fieldDifferences []EventFieldChange) *Pair[int64, string] {
+	fieldDifferences []EventFieldChange) []*Pair[int64, string] {
+	var violations []*Pair[int64, string]
 
 	count := 0
 	for _, difference := range fieldDifferences {
@@ -88,9 +83,9 @@ func (r FieldChangeCountRule) CheckForViolation(fieldName string,
 			message := fmt.Sprintf("JsonNode field change threshold %d exceeded for field %s.",
 				r.fieldChangeThreshold, fieldName)
 
-			return NewPair(difference.SourceEventId, message)
+			violations = append(violations, NewPair(difference.SourceEventId, message))
 		}
 	}
 
-	return nil
+	return violations
 }

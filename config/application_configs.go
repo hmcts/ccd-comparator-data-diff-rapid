@@ -56,6 +56,7 @@ type Scan struct {
 		Enabled            bool
 		MaskValue          bool
 		IncludeEmptyChange bool
+		IncludeNoChange    bool
 	}
 }
 
