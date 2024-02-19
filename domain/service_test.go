@@ -21,7 +21,7 @@ type MockSaveRepository struct {
 	mock.Mock
 }
 
-func (m *MockSaveRepository) saveAllEventDataReport(eventDataReportEntities []comparator.EventDataReportEntity) error {
+func (m *MockSaveRepository) saveAllEventDataReport(size int, eventDataReportEntities []comparator.EventDataReportEntity) error {
 	args := m.Called(eventDataReportEntities)
 	return args.Error(0)
 }

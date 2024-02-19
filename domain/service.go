@@ -237,7 +237,7 @@ func (s Service) saveReport(transactionId string, analyzeResult *comparator.Anal
 
 		log.Info().Msgf("tid:%s - Saving report data to the database. Total record number: %d", transactionId, numberOfRecord)
 
-		err = s.saveRepo.saveAllEventDataReport(eventDataReportEntities)
+		err = s.saveRepo.saveAllEventDataReport(s.configuration.Database.BatchSize, eventDataReportEntities)
 		if err != nil {
 			return errors.Wrap(err, "failed to save report data")
 		}

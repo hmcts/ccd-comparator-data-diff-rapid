@@ -8,10 +8,10 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const batchSize = 100
+const defaultBatchSize = 100
 
 type SaveRepository interface {
-	saveAllEventDataReport(eventDataReportEntities []comparator.EventDataReportEntity) error
+	saveAllEventDataReport(batchSize int, eventDataReportEntities []comparator.EventDataReportEntity) error
 }
 
 type saveRepository struct {
@@ -22,9 +22,11 @@ func NewSaveRepository(db store.DB) SaveRepository {
 	return &saveRepository{db: db}
 }
 
-func (s saveRepository) saveAllEventDataReport(eventDataReportEntities []comparator.EventDataReportEntity) error {
+func (s saveRepository) saveAllEventDataReport(batchSize int, eventDataReportEntities []comparator.EventDataReportEntity) error {
 	totalEntities := len(eventDataReportEntities)
-
+	if batchSize == 0 {
+		batchSize = defaultBatchSize
+	}
 	tx := s.db.MustBegin()
 	for i := 0; i < totalEntities; i += batchSize {
 		end := i + batchSize
