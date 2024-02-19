@@ -45,7 +45,7 @@ func (r SameValueAfterChangeRule) CheckForViolation(fieldName string, fieldChang
 							sourceEventId := currentChange.SourceEventId
 							message := fmt.Sprintf("Field '%s' changed to '%s' in event id %d on %s, "+
 								"but reverted back to the previous value '%s' in event id %d on %s",
-								trimInputValue(fieldName), processInputValue(previousChange.NewRecord,
+								fieldName, processInputValue(previousChange.NewRecord,
 									r.isScanReportMask),
 								previousChange.SourceEventId, helper.FormatTimeStamp(previousChange.CreatedDate),
 								processInputValue(currentChange.NewRecord, r.isScanReportMask), currentChange.SourceEventId,
@@ -67,14 +67,6 @@ func processInputValue(input string, isScanReportMask bool) string {
 	}
 
 	maxLength := 25
-	if len(input) > maxLength {
-		return input[:maxLength]
-	}
-	return input
-}
-
-func trimInputValue(input string) string {
-	maxLength := 50
 	if len(input) > maxLength {
 		return input[:maxLength]
 	}
