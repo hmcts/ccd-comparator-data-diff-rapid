@@ -46,6 +46,7 @@ type Comparison struct {
 type comparisonWork struct {
 	transactionId string
 	comparison    Comparison
+	caseIds       []string
 }
 
 type comparisonResult struct {
@@ -88,27 +89,63 @@ func (s Service) processComparisonWork(wg *sync.WaitGroup, comparison Comparison
 	workers := make(chan comparisonWork, numberOfWorker)
 	defer closeWorkers(workers)
 
+	caseIds, err := s.retrieveCaseIdsByEvents(comparison)
+	if err != nil {
+		log.Error().Msgf("Couldn't retrieve caseIds. ERROR: %s", err)
+		return
+	}
+
+	countOfCaseIds := len(caseIds)
+	if countOfCaseIds == 0 {
+		log.Warn().Msgf("Couldn't retrieved any case: start period: %s, "+
+			"end period: %s with jurisdiction: %s and caseType: %s",
+			helper.FormatTimeStamp(comparison.StartTime), helper.FormatTimeStamp(comparison.SearchPeriodEndTime),
+			comparison.Jurisdiction, comparison.CaseTypeId)
+		return
+	}
+
+	log.Info().Msgf("'%d' case retrieved: start period: %s, "+
+		"end period: %s with jurisdiction: %s and caseType: %s",
+		countOfCaseIds, helper.FormatTimeStamp(comparison.StartTime), helper.FormatTimeStamp(comparison.SearchPeriodEndTime),
+		comparison.Jurisdiction, comparison.CaseTypeId)
+
 	for wid := 1; wid <= numberOfWorker; wid++ {
 		wg.Add(1)
 		go s.compareAndSaveEvents(wid, wg, workers, resultChan)
 	}
 
-	startTime := comparison.StartTime
-	endTime := comparison.SearchPeriodEndTime
-
-	for !startTime.After(endTime) {
-		transactionId := uuid.New().String()
-		searchPeriodEndTime := calculateSearchPeriodEndTime(startTime, endTime, s.configuration.SearchWindow)
-		comparison.StartTime = startTime
-		comparison.SearchPeriodEndTime = searchPeriodEndTime
-
-		workers <- comparisonWork{
-			transactionId: transactionId,
-			comparison:    comparison,
+	batchSize := s.configuration.Scan.BatchSize
+	for i := 0; i < countOfCaseIds; i += batchSize {
+		end := i + batchSize
+		if end > countOfCaseIds {
+			end = countOfCaseIds
 		}
 
-		startTime = searchPeriodEndTime.Add(1 * time.Nanosecond)
+		batch := caseIds[i:end]
+
+		transactionId := uuid.New().String()
+		workers <- comparisonWork{
+			transactionId: transactionId,
+			caseIds:       batch,
+		}
 	}
+
+	//startTime := comparison.StartTime
+	//endTime := comparison.SearchPeriodEndTime
+	//
+	//for !startTime.After(endTime) {
+	//	transactionId := uuid.New().String()
+	//	searchPeriodEndTime := calculateSearchPeriodEndTime(startTime, endTime, s.configuration.SearchWindow)
+	//	comparison.StartTime = startTime
+	//	comparison.SearchPeriodEndTime = searchPeriodEndTime
+	//
+	//	workers <- comparisonWork{
+	//		transactionId: transactionId,
+	//		comparison:    comparison,
+	//	}
+	//
+	//	startTime = searchPeriodEndTime.Add(1 * time.Nanosecond)
+	//}
 }
 
 func closeWorkers(workers chan comparisonWork) {
@@ -116,22 +153,27 @@ func closeWorkers(workers chan comparisonWork) {
 	close(workers)
 }
 
-func calculateSearchPeriodEndTime(startTime, endTime time.Time, searchWindow int) time.Time {
-	if searchWindow <= 0 {
-		searchWindow = 0
-	} else {
-		searchWindow = searchWindow - 1
-	}
+//func calculateSearchPeriodEndTime(startTime, endTime time.Time, searchWindow int) time.Time {
+//	if searchWindow <= 0 {
+//		searchWindow = 0
+//	} else {
+//		searchWindow = searchWindow - 1
+//	}
+//
+//	searchPeriodEndTime := startTime.Add(time.Duration(searchWindow) * time.Hour)
+//
+//	searchPeriodEndTime = time.Date(searchPeriodEndTime.Year(), searchPeriodEndTime.Month(),
+//		searchPeriodEndTime.Day(), searchPeriodEndTime.Hour(), minutesInHour-1, secondsInMinute-1, nanoseconds, searchPeriodEndTime.Location())
+//
+//	if searchPeriodEndTime.After(endTime) {
+//		searchPeriodEndTime = endTime
+//	}
+//
+//	return searchPeriodEndTime
+//}
 
-	searchPeriodEndTime := startTime.AddDate(0, 0, searchWindow)
-	searchPeriodEndTime = time.Date(searchPeriodEndTime.Year(), searchPeriodEndTime.Month(),
-		searchPeriodEndTime.Day(), hoursInDay-1, minutesInHour-1, secondsInMinute-1, nanoseconds, searchPeriodEndTime.Location())
-
-	if searchPeriodEndTime.After(endTime) {
-		searchPeriodEndTime = endTime
-	}
-
-	return searchPeriodEndTime
+func (s Service) retrieveCaseIdsByEvents(comparison Comparison) ([]string, error) {
+	return s.queryRepo.findCasesByEventsInImpactPeriod(comparison)
 }
 
 func (s Service) compareAndSaveEvents(workerId int, wg *sync.WaitGroup, workers <-chan comparisonWork, resultChan chan<- comparisonResult) {
@@ -142,7 +184,7 @@ func (s Service) compareAndSaveEvents(workerId int, wg *sync.WaitGroup, workers 
 
 	for w := range workers {
 		logEventComparisonStart(workerId, w)
-		cases, err := s.queryRepo.findCasesByJurisdictionInImpactPeriod(w.comparison)
+		cases, err := s.queryRepo.findCasesByJurisdictionInImpactPeriod(w.caseIds)
 		if err != nil {
 			handleError(resultChan, w.transactionId, err, "finding cases")
 			continue
@@ -188,9 +230,8 @@ func (s Service) compareAndSaveEvents(workerId int, wg *sync.WaitGroup, workers 
 }
 
 func logEventComparisonStart(workerId int, w comparisonWork) {
-	log.Info().Msgf("tid:%s -- Event comparison started in worker %d: start period: %s, end period: %s with jurisdiction: %s and caseType: %s",
-		w.transactionId, workerId, helper.FormatTimeStamp(w.comparison.StartTime),
-		helper.FormatTimeStamp(w.comparison.SearchPeriodEndTime), w.comparison.Jurisdiction, w.comparison.CaseTypeId)
+	log.Info().Msgf("tid:%s -- Event comparison started in worker %d: caseIds: %s",
+		w.transactionId, workerId, w.caseIds)
 }
 
 func logParsingCaseData(transactionId, jurisdiction, caseTypeID string, numCases int) {

@@ -6,7 +6,7 @@ database:
   password: ccd
   driver: postgres
   sslmode: require
-  batchSize: 50
+  batchSize: 100
 period:
   startTime: "2022-01-01T07:00:00.000" # considered GMT
   endTime:   "2022-01-31T23:20:59.000"
@@ -18,6 +18,7 @@ rule:
 scan:
   jurisdiction: BEFTA_JURISDICTION_3  # Jurisdiction for scanning
   caseType: BEFTA_CASETYPE_3_1 # Case type for scanning
+  batchSize: 30
   concurrent:
     event:
       thresholdMilliseconds: 10000 # Threshold time in milliseconds for concurrent events. Set to -1 to disable threshold

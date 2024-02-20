@@ -45,6 +45,7 @@ type Rule struct {
 type Scan struct {
 	Jurisdiction string
 	CaseType     string
+	BatchSize    int
 	Concurrent   struct {
 		Event struct {
 			ThresholdMilliseconds int64

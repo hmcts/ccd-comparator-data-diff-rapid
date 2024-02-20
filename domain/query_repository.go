@@ -3,11 +3,13 @@ package domain
 import (
 	"ccd-comparator-data-diff-rapid/internal/store"
 	"github.com/pkg/errors"
+	"strings"
 	"time"
 )
 
 type QueryRepository interface {
-	findCasesByJurisdictionInImpactPeriod(comparison Comparison) ([]CaseDataEntity, error)
+	findCasesByJurisdictionInImpactPeriod(caseIds []string) ([]CaseDataEntity, error)
+	findCasesByEventsInImpactPeriod(comparison Comparison) ([]string, error)
 }
 
 type queryRepository struct {
@@ -31,35 +33,34 @@ func NewQueryRepository(db store.DB) QueryRepository {
 	return &queryRepository{db: db}
 }
 
-func (r queryRepository) findCasesByJurisdictionInImpactPeriod(comparison Comparison) ([]CaseDataEntity, error) {
+func (r queryRepository) findCasesByEventsInImpactPeriod(comparison Comparison) ([]string, error) {
+	var caseIDs []string
+	err := r.db.Select(&caseIDs, `SELECT DISTINCT cd.id FROM case_data cd
+							INNER JOIN case_event ce ON cd.id = ce.case_data_id
+							WHERE cd.jurisdiction = $1
+								AND cd.case_type_id = $2
+								AND ce.created_date >= $3
+								AND ce.created_date <= $4
+		`, comparison.Jurisdiction, comparison.CaseTypeId, comparison.StartTime, comparison.SearchPeriodEndTime)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "error while retrieving caseIDs in findCasesByJurisdictionInImpactPeriod()")
+	}
+
+	return caseIDs, nil
+}
+
+func (r queryRepository) findCasesByJurisdictionInImpactPeriod(caseIds []string) ([]CaseDataEntity, error) {
 	var caseData []CaseDataEntity
 
-	err := r.db.Select(&caseData, `
-			SELECT 
-				cd.id as case_id,
-				cd.created_date as case_created_date,
-				cd.jurisdiction as jurisdiction,
-				cd.case_type_id as case_type_id,
-				cd.reference as reference,
-				ce.case_data_id as case_data_id,
-				ce.id as event_id,
-				ce.event_id as event_name,
-				ce.created_date as event_created_date,
-				ce.data as event_data
-			FROM 
-				case_data cd 
-			INNER JOIN 
-				case_event ce ON cd.id = ce.case_data_id
-			WHERE 
-				cd.id IN (
-					SELECT DISTINCT cd.id
-					FROM case_data cd 
-					INNER JOIN case_event ce ON cd.id = ce.case_data_id
-					WHERE cd.jurisdiction = $1
-					AND cd.case_type_id = $2
-					AND ce.created_date >= $3
-					AND ce.created_date <= $4)`,
-		comparison.Jurisdiction, comparison.CaseTypeId, comparison.StartTime, comparison.SearchPeriodEndTime)
+	caseIDQuery := "'" + strings.Join(caseIds, "','") + "'"
+
+	err := r.db.Select(&caseData, `SELECT cd.id as case_id, cd.created_date as case_created_date,
+							cd.jurisdiction as jurisdiction, cd.case_type_id as case_type_id, cd.reference as reference,
+							ce.case_data_id as case_data_id, ce.id as event_id, ce.event_id as event_name, 
+							ce.created_date as event_created_date, ce.data as event_data
+							FROM case_data cd inner join case_event ce on cd.id = ce.case_data_id
+							WHERE cd.id IN (`+caseIDQuery+`)`)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "error in findCasesByJurisdictionInImpactPeriod()")
