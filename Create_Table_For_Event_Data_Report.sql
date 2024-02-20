@@ -12,7 +12,7 @@ create TABLE IF NOT EXISTS public.event_data_report (
     new_record text,
     previous_event_created_date timestamp,
     event_created_date timestamp,
-    analyze_result VARCHAR(510),
+    analyze_result_detail text,
     potential_risk BOOLEAN NOT NULL DEFAULT FALSE
 );
 alter sequence public.event_data_report_id_seq OWNED BY public.event_data_report.id CACHE 50;
