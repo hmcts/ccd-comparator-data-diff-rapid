@@ -34,15 +34,31 @@ func NewQueryRepository(db store.DB) QueryRepository {
 func (r queryRepository) findCasesByJurisdictionInImpactPeriod(comparison Comparison) ([]CaseDataEntity, error) {
 	var caseData []CaseDataEntity
 
-	err := r.db.Select(&caseData, `SELECT cd.id as case_id, cd.created_date as case_created_date,
-							cd.jurisdiction as jurisdiction, cd.case_type_id as case_type_id, cd.reference as reference,
-							ce.case_data_id as case_data_id, ce.id as event_id, ce.event_id as event_name, 
-							ce.created_date as event_created_date, ce.data as event_data
-							FROM case_data cd inner join case_event ce on cd.id = ce.case_data_id
-							WHERE cd.jurisdiction = $1 --and cd.reference = 1694712444849169
-								AND cd.case_type_id =  $2
-								AND cd.created_date >= $3
-								AND cd.created_date <= $4`,
+	err := r.db.Select(&caseData, `
+			SELECT 
+				cd.id as case_id,
+				cd.created_date as case_created_date,
+				cd.jurisdiction as jurisdiction,
+				cd.case_type_id as case_type_id,
+				cd.reference as reference,
+				ce.case_data_id as case_data_id,
+				ce.id as event_id,
+				ce.event_id as event_name,
+				ce.created_date as event_created_date,
+				ce.data as event_data
+			FROM 
+				case_data cd 
+			INNER JOIN 
+				case_event ce ON cd.id = ce.case_data_id
+			WHERE 
+				cd.id IN (
+					SELECT DISTINCT cd.id
+					FROM case_data cd 
+					INNER JOIN case_event ce ON cd.id = ce.case_data_id
+					WHERE cd.jurisdiction = $1
+					AND cd.case_type_id = $2
+					AND ce.created_date >= $3
+					AND ce.created_date <= $4)`,
 		comparison.Jurisdiction, comparison.CaseTypeId, comparison.StartTime, comparison.SearchPeriodEndTime)
 
 	if err != nil {
