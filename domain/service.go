@@ -129,48 +129,12 @@ func (s Service) processComparisonWork(wg *sync.WaitGroup, comparison Comparison
 			caseIds:       batch,
 		}
 	}
-
-	//startTime := comparison.StartTime
-	//endTime := comparison.SearchPeriodEndTime
-	//
-	//for !startTime.After(endTime) {
-	//	transactionId := uuid.New().String()
-	//	searchPeriodEndTime := calculateSearchPeriodEndTime(startTime, endTime, s.configuration.SearchWindow)
-	//	comparison.StartTime = startTime
-	//	comparison.SearchPeriodEndTime = searchPeriodEndTime
-	//
-	//	workers <- comparisonWork{
-	//		transactionId: transactionId,
-	//		comparison:    comparison,
-	//	}
-	//
-	//	startTime = searchPeriodEndTime.Add(1 * time.Nanosecond)
-	//}
 }
 
 func closeWorkers(workers chan comparisonWork) {
 	log.Info().Msgf("All jobs have been sent successfully to the workers")
 	close(workers)
 }
-
-//func calculateSearchPeriodEndTime(startTime, endTime time.Time, searchWindow int) time.Time {
-//	if searchWindow <= 0 {
-//		searchWindow = 0
-//	} else {
-//		searchWindow = searchWindow - 1
-//	}
-//
-//	searchPeriodEndTime := startTime.Add(time.Duration(searchWindow) * time.Hour)
-//
-//	searchPeriodEndTime = time.Date(searchPeriodEndTime.Year(), searchPeriodEndTime.Month(),
-//		searchPeriodEndTime.Day(), searchPeriodEndTime.Hour(), minutesInHour-1, secondsInMinute-1, nanoseconds, searchPeriodEndTime.Location())
-//
-//	if searchPeriodEndTime.After(endTime) {
-//		searchPeriodEndTime = endTime
-//	}
-//
-//	return searchPeriodEndTime
-//}
 
 func (s Service) retrieveCaseIdsByEvents(comparison Comparison) ([]string, error) {
 	return s.queryRepo.findCasesByEventsInImpactPeriod(comparison)
