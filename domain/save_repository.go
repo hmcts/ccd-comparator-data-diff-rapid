@@ -36,7 +36,7 @@ func (s saveRepository) saveAllEventDataReport(batchSize int, eventDataReportEnt
 
 		batch := eventDataReportEntities[i:end]
 
-		res, err := tx.NamedExec(`INSERT INTO event_data_report_v2 (
+		res, err := tx.NamedExec(`INSERT INTO event_data_report_v3 (
 			event_id, event_name, case_type_id, reference, field_name, change_type,
 			old_record, new_record, previous_event_created_date, event_created_date,
 			analyze_result_detail, potential_risk)
