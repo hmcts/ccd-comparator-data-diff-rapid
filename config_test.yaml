@@ -6,6 +6,7 @@ database:
   password: ccd
   driver: postgres
   sslmode: disable
+  batchSize: 100
 period:
   startTime: "2023-01-01T09:00:00.000" # considered GMT
   endTime:   "2023-04-18T09:59:59.000"
@@ -17,6 +18,7 @@ rule:
 scan:
   jurisdiction: BEFTA_JURISDICTION_3
   caseType: BEFTA_CASETYPE_3_2
+  batchSize: 100
   concurrent:
     event:
       thresholdMilliseconds: 10000
@@ -26,6 +28,7 @@ scan:
     enabled: true
     includeEmptyChange: false
     maskValue: false
+    includeNoChange: false
 log:
   level: info
   type: out
