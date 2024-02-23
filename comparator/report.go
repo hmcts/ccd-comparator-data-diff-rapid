@@ -1,6 +1,7 @@
 package comparator
 
 import (
+	"bytes"
 	"ccd-comparator-data-diff-rapid/config"
 	"ccd-comparator-data-diff-rapid/helper"
 	"fmt"
@@ -40,43 +41,52 @@ func PrepareReportEntities(eventDifferences map[string][]EventFieldChange, analy
 		fieldName := parts[1]
 
 		for _, eventFieldDiff := range fieldDifferences {
-			entity := EventDataReportEntity{}
-			combinedResult := analyzeResult.Get(combinedReference, eventFieldDiff.SourceEventId)
+			if configurations.Report.IncludeNoChange || eventFieldDiff.OperationType != helper.NoChange {
+				entity := EventDataReportEntity{}
+				combinedResult := analyzeResult.Get(combinedReference, eventFieldDiff.SourceEventId)
 
-			var previousEventCreatedDate time.Time
-			var message string
-			if combinedResult != "" {
-				combinedResults := strings.Split(combinedResult, "->")
-				if len(combinedResults) == 2 {
-					previousEventCreatedDate = helper.MustParseTime("", combinedResults[0])
-					message = combinedResults[1]
-				} else {
-					message = combinedResults[0]
+				var previousEventCreatedDate time.Time
+				var message string
+				if combinedResult != "" {
+					combinedResults := strings.Split(combinedResult, "->")
+					if len(combinedResults) == 2 {
+						previousEventCreatedDate = helper.MustParseTime("", combinedResults[0])
+						message = combinedResults[1]
+					} else {
+						message = combinedResults[0]
+					}
 				}
-			}
 
-			if configurations.Report.IncludeEmptyChange || message != "" {
-				var oldRecord, newRecord string
-				if !configurations.Report.MaskValue {
-					oldRecord = eventFieldDiff.OldRecord
-					newRecord = eventFieldDiff.NewRecord
+				if configurations.Report.IncludeEmptyChange || message != "" {
+					var oldRecord, newRecord string
+					if !configurations.Report.MaskValue {
+						oldRecord = eventFieldDiff.OldRecord
+						newRecord = eventFieldDiff.NewRecord
+					}
+					entity.EventID = eventFieldDiff.SourceEventId
+					entity.EventName = eventFieldDiff.SourceEventName
+					entity.CaseTypeID = configurations.CaseType
+					entity.Reference = caseReference
+					entity.FieldName = fieldName
+					entity.ChangeType = string(eventFieldDiff.OperationType)
+					entity.OldRecord = stripBytes(oldRecord)
+					entity.NewRecord = stripBytes(newRecord)
+					entity.PreviousEventCreatedDate = previousEventCreatedDate
+					entity.EventCreatedDate = eventFieldDiff.CreatedDate
+					entity.AnalyzeResult = stripBytes(message)
+					entity.PotentialRisk = message != ""
+					eventDataReportEntities = append(eventDataReportEntities, entity)
 				}
-				entity.EventID = eventFieldDiff.SourceEventId
-				entity.EventName = eventFieldDiff.SourceEventName
-				entity.CaseTypeID = configurations.CaseType
-				entity.Reference = caseReference
-				entity.FieldName = fieldName
-				entity.ChangeType = string(eventFieldDiff.OperationType)
-				entity.OldRecord = oldRecord
-				entity.NewRecord = newRecord
-				entity.PreviousEventCreatedDate = previousEventCreatedDate
-				entity.EventCreatedDate = eventFieldDiff.CreatedDate
-				entity.AnalyzeResult = message
-				entity.PotentialRisk = message != ""
-				eventDataReportEntities = append(eventDataReportEntities, entity)
 			}
 		}
 	}
 
 	return eventDataReportEntities, nil
+}
+
+func stripBytes(value string) string {
+	data := []byte(value)
+	data = bytes.Replace(data, []byte{0xe2, 0x27, 0x20}, []byte{}, -1)
+
+	return string(data)
 }

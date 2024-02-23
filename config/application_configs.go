@@ -18,13 +18,14 @@ type Configurations struct {
 }
 
 type Database struct {
-	Username string
-	Password string
-	Host     string
-	Port     int
-	Name     string
-	Driver   string
-	SslMode  string
+	Username  string
+	Password  string
+	Host      string
+	Port      int
+	Name      string
+	Driver    string
+	SslMode   string
+	BatchSize int
 }
 
 type Period struct {
@@ -44,6 +45,7 @@ type Rule struct {
 type Scan struct {
 	Jurisdiction string
 	CaseType     string
+	BatchSize    int
 	Concurrent   struct {
 		Event struct {
 			ThresholdMilliseconds int64
@@ -56,6 +58,7 @@ type Scan struct {
 		Enabled            bool
 		MaskValue          bool
 		IncludeEmptyChange bool
+		IncludeNoChange    bool
 	}
 }
 

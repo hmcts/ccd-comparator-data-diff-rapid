@@ -34,7 +34,7 @@ func TestSaveAllEventDataReport(t *testing.T) {
 
 	eventDataReportEntities := make([]comparator.EventDataReportEntity, 201)
 
-	err := saveRepo.saveAllEventDataReport(eventDataReportEntities)
+	err := saveRepo.saveAllEventDataReport(0, eventDataReportEntities)
 	assert.NoError(t, err)
 	mockDB.AssertExpectations(t)
 	mockTx.AssertExpectations(t)
@@ -53,7 +53,7 @@ func TestSaveAllEventDataReportInsertError(t *testing.T) {
 
 	eventDataReportEntities := make([]comparator.EventDataReportEntity, 100)
 
-	err := saveRepo.saveAllEventDataReport(eventDataReportEntities)
+	err := saveRepo.saveAllEventDataReport(0, eventDataReportEntities)
 	assert.Error(t, err)
 	assert.EqualError(t, err, "Failed while batch inserting report: insert error")
 	mockDB.AssertExpectations(t)
@@ -74,7 +74,7 @@ func TestSaveAllEventDataReportCommitError(t *testing.T) {
 
 	eventDataReportEntities := make([]comparator.EventDataReportEntity, 100)
 
-	err := saveRepo.saveAllEventDataReport(eventDataReportEntities)
+	err := saveRepo.saveAllEventDataReport(0, eventDataReportEntities)
 	assert.Error(t, err)
 	assert.EqualError(t, err, "Failed while committing the transaction: commit error")
 	mockDB.AssertExpectations(t)

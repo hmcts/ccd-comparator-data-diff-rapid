@@ -51,7 +51,13 @@ func CompareEventsByCaseReference(transactionId string, caseEvents CasesWithEven
 	for caseReference, events := range caseEvents {
 		wg.Add(1)
 		go func(caseReference int64, events map[int64]EventDetails) {
-			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error().Msgf("tid:%s - Recovered from panic: %s. %d hasn't been processed.", transactionId,
+						r, caseReference)
+				}
+				wg.Done()
+			}()
 
 			differences := detectEventModifications(caseReference, events)
 			mergedDifferences.PutAll(differences)
@@ -109,16 +115,15 @@ func compareJsonNodes(base, compareWith interface{}, differences *differences, p
 			if compareValue, ok := compareNode[key]; ok {
 				compareJsonNodes(value, compareValue, differences, currentPath, eventId, createdDate, eventName)
 			} else {
-				//compareNode[key] = nil
-				difference := createDifference(value, "", eventId, createdDate, helper.Deleted, eventName)
-				differences.recordDifferenceAtPath(currentPath, difference)
+				differences.recordDifferenceAtPath(currentPath, createDifference(value, "", eventId,
+					createdDate, helper.Deleted, eventName))
 			}
 		}
 		for key, value := range compareNode {
 			currentPath := fmt.Sprintf("%s.%s", parentPath, key)
 			if _, ok := baseNode[key]; !ok {
-				difference := createDifference("", value, eventId, createdDate, helper.Added, eventName)
-				differences.recordDifferenceAtPath(currentPath, difference)
+				differences.recordDifferenceAtPath(currentPath, createDifference("", value, eventId,
+					createdDate, helper.Added, eventName))
 			}
 		}
 	} else {
@@ -126,25 +131,21 @@ func compareJsonNodes(base, compareWith interface{}, differences *differences, p
 		compareArray, isCompareArray := convertToSlice(compareWith)
 		if isBaseArray && isCompareArray {
 			if len(baseArray) > len(compareArray) {
-				difference := createDifference(base, compareWith, eventId, createdDate, helper.ArrayShrunk, eventName)
-				differences.recordDifferenceAtPath(parentPath, difference)
+				differences.recordDifferenceAtPath(parentPath, createDifference(base, compareWith, eventId, createdDate,
+					helper.ArrayShrunk, eventName))
 			} else if len(baseArray) < len(compareArray) {
-				difference := createDifference(base, compareWith, eventId, createdDate, helper.ArrayExtended, eventName)
-				differences.recordDifferenceAtPath(parentPath, difference)
-			} else {
-				for i := 0; i < len(baseArray); i++ {
-					compareJsonNodes(baseArray[i], compareArray[i], differences, fmt.Sprintf("%s[%d]", parentPath, i),
-						eventId, createdDate, eventName)
-				}
+				differences.recordDifferenceAtPath(parentPath, createDifference(base, compareWith, eventId, createdDate,
+					helper.ArrayExtended, eventName))
+			} else if !compareArrays(baseArray, compareArray) {
+				differences.recordDifferenceAtPath(parentPath, createDifference(base, compareWith, eventId, createdDate,
+					helper.ArrayModified, eventName))
 			}
+		} else if !compareWithEqual(base, compareWith) {
+			differences.recordDifferenceAtPath(parentPath, createDifference(base, compareWith, eventId, createdDate,
+				helper.Modified, eventName))
 		} else {
-			if !compareWithEqual(base, compareWith) {
-				difference := createDifference(base, compareWith, eventId, createdDate, helper.Modified, eventName)
-				differences.recordDifferenceAtPath(parentPath, difference)
-			} else {
-				difference := createDifference(base, compareWith, eventId, createdDate, helper.NoChange, eventName)
-				differences.recordDifferenceAtPath(parentPath, difference)
-			}
+			differences.recordDifferenceAtPath(parentPath, createDifference(base, compareWith, eventId, createdDate,
+				helper.NoChange, eventName))
 		}
 	}
 }
@@ -179,6 +180,56 @@ func convertToSlice(v interface{}) ([]interface{}, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func compareArrays(base, compare []interface{}) bool {
+	// https://pkg.go.dev/encoding/json#Marshal keys are sorted
+	baseMap := make(map[string]interface{})
+	compareMap := make(map[string]interface{})
+
+	for _, item := range base {
+		switch item := item.(type) {
+		case map[string]interface{}:
+			delete(item, "id")
+			itemJSON, _ := json.Marshal(item)
+			baseMap[string(itemJSON)] = item
+		default:
+			if strItem, ok := item.(string); ok {
+				baseMap[strItem] = item
+			}
+		}
+	}
+
+	for _, item := range compare {
+		switch item := item.(type) {
+		case map[string]interface{}:
+			delete(item, "id")
+			itemJSON, _ := json.Marshal(item)
+			compareMap[string(itemJSON)] = item
+		default:
+			if strItem, ok := item.(string); ok {
+				compareMap[strItem] = item
+			}
+		}
+	}
+
+	for key, baseItem := range baseMap {
+		compareItem, ok := compareMap[key]
+		if !ok {
+			return false
+		} else if !reflect.DeepEqual(baseItem, compareItem) {
+			return false
+		}
+	}
+
+	for key, _ := range compareMap {
+		_, ok := baseMap[key]
+		if !ok {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (d *differences) recordDifferenceAtPath(path string, difference EventFieldChange) {
