@@ -12,6 +12,7 @@ const (
 	Added         OperationType = "ADDED"
 	Deleted       OperationType = "DELETED"
 	Modified      OperationType = "MODIFIED"
+	ArrayModified OperationType = "ARRAY_MODIFIED"
 	ArrayExtended OperationType = "ARRAY_EXTENDED"
 	ArrayShrunk   OperationType = "ARRAY_SHRUNK"
 	NoChange      OperationType = "NO_CHANGE"
