@@ -6,7 +6,14 @@ import (
 )
 
 type Rule interface {
-	CheckForViolation(fieldName string, fieldChanges []EventFieldChange) []*Pair[int64, string]
+	CheckForViolation(fieldName string, fieldChanges []EventFieldChange) []Violation
+}
+
+type Violation struct {
+	sourceEventId            int64
+	previousEventCreatedDate string
+	previousEventUserId      string
+	message                  string
 }
 
 type SameValueAfterChangeRule struct {
@@ -29,15 +36,14 @@ func NewFieldChangeCountRule(fieldChangeThreshold int) *FieldChangeCountRule {
 	return &FieldChangeCountRule{fieldChangeThreshold}
 }
 
-func (r SameValueAfterChangeRule) CheckForViolation(fieldName string, fieldChanges []EventFieldChange) []*Pair[int64,
-	string] {
-	var violations []*Pair[int64, string]
+func (r SameValueAfterChangeRule) CheckForViolation(fieldName string, fieldChanges []EventFieldChange) []Violation {
+	var violations []Violation
 
 	for currentIndex, currentChange := range fieldChanges {
-		if currentChange.OperationType != helper.NoChange {
+		if currentChange.OperationType != NoChange {
 			for previousIndex := 0; previousIndex < currentIndex; previousIndex++ {
 				previousChange := fieldChanges[previousIndex]
-				if previousChange.OperationType != helper.NoChange {
+				if previousChange.OperationType != NoChange {
 					if currentChange.NewRecord == previousChange.OldRecord {
 						timeDifference := currentChange.CreatedDate.Sub(previousChange.CreatedDate).Milliseconds()
 						if r.concurrentEventThresholdMilliseconds == -1 || timeDifference <= r.
@@ -50,7 +56,13 @@ func (r SameValueAfterChangeRule) CheckForViolation(fieldName string, fieldChang
 								previousChange.SourceEventId, helper.FormatTimeStamp(previousChange.CreatedDate),
 								processInputValue(currentChange.NewRecord, r.isScanReportMask), currentChange.SourceEventId,
 								helper.FormatTimeStamp(currentChange.CreatedDate))
-							violations = append(violations, NewPair(sourceEventId, message))
+							v := Violation{
+								sourceEventId:            sourceEventId,
+								previousEventCreatedDate: helper.FormatTimeStamp(previousChange.CreatedDate),
+								previousEventUserId:      previousChange.UserId,
+								message:                  message,
+							}
+							violations = append(violations, v)
 						}
 					}
 				}
@@ -73,18 +85,21 @@ func processInputValue(input string, isScanReportMask bool) string {
 	return input
 }
 
-func (r FieldChangeCountRule) CheckForViolation(fieldName string,
-	fieldDifferences []EventFieldChange) []*Pair[int64, string] {
-	var violations []*Pair[int64, string]
+func (r FieldChangeCountRule) CheckForViolation(fieldName string, fieldChanges []EventFieldChange) []Violation {
+	var violations []Violation
 
 	count := 0
-	for _, difference := range fieldDifferences {
+	for _, difference := range fieldChanges {
 		count++
 		if count > r.fieldChangeThreshold {
 			message := fmt.Sprintf("JsonNode field change threshold %d exceeded for field %s.",
 				r.fieldChangeThreshold, fieldName)
 
-			violations = append(violations, NewPair(difference.SourceEventId, message))
+			v := Violation{
+				sourceEventId: difference.SourceEventId,
+				message:       message,
+			}
+			violations = append(violations, v)
 		}
 	}
 

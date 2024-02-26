@@ -31,10 +31,10 @@ func (e *EventChangesAnalyze) AnalyzeEventFieldChanges() *AnalyzeResult {
 func (e *EventChangesAnalyze) analyzeFieldDifferencesForCase(combinedReference string, fieldChanges []EventFieldChange) {
 	fieldName := getFieldFromCombinedReference(combinedReference)
 	for _, rule := range *e.activeRules {
-		pairList := rule.CheckForViolation(fieldName, fieldChanges)
-		if len(pairList) > 0 {
-			for _, pair := range pairList {
-				e.addAnalyzeDetail(combinedReference, pair)
+		violations := rule.CheckForViolation(fieldName, fieldChanges)
+		if len(violations) > 0 {
+			for _, violation := range violations {
+				e.addAnalyzeDetail(combinedReference, violation)
 			}
 		}
 	}
@@ -48,15 +48,15 @@ func getFieldFromCombinedReference(combinedReference string) string {
 	return ""
 }
 
-func (e *EventChangesAnalyze) addAnalyzeDetail(combinedReference string, pair *Pair[int64, string]) {
-	newMessage := pair.Right
-	eventId := pair.Left
-	existingMessage := e.analyzeResult.Get(combinedReference, eventId)
-	if existingMessage != "" {
-		e.analyzeResult.Put(combinedReference, eventId, appendMessages(existingMessage, newMessage))
-	} else {
-		e.analyzeResult.Put(combinedReference, eventId, newMessage)
+func (e *EventChangesAnalyze) addAnalyzeDetail(combinedReference string, violation Violation) {
+	newMessage := violation.message
+	existingViolation := e.analyzeResult.Get(combinedReference, violation.sourceEventId)
+
+	if existingViolation.message != "" {
+		newMessage = appendMessages(existingViolation.message, newMessage)
 	}
+	violation.message = newMessage
+	e.analyzeResult.Put(combinedReference, violation)
 }
 
 func appendMessages(existingMessage, newMessage string) string {

@@ -71,12 +71,12 @@ func TestEventDifferencesData_AppendMessages(t *testing.T) {
 	existingMessage := "Existing Message"
 	newMessage := "New Message"
 
-	pair := &Pair[int64, string]{Left: 123, Right: newMessage}
+	pair := &Either[int64, string]{Left: 123, Right: newMessage}
 	result := appendMessages("", pair.Right)
 	assert.Equal(t, newMessage, result, "Appended message should be equal to the new message")
 
 	// Test when existingMessage is not empty
-	pair = &Pair[int64, string]{Left: 123, Right: newMessage}
+	pair = &Either[int64, string]{Left: 123, Right: newMessage}
 	result = appendMessages(existingMessage, pair.Right)
 	assert.Equal(t, existingMessage+"\n"+newMessage, result, "Appended message should have both existing and new messages")
 }

@@ -12,12 +12,25 @@ import (
 	"time"
 )
 
+type OperationType string
+
+const (
+	Added         OperationType = "ADDED"
+	Deleted       OperationType = "DELETED"
+	Modified      OperationType = "MODIFIED"
+	ArrayModified OperationType = "ARRAY_MODIFIED"
+	ArrayExtended OperationType = "ARRAY_EXTENDED"
+	ArrayShrunk   OperationType = "ARRAY_SHRUNK"
+	NoChange      OperationType = "NO_CHANGE"
+)
+
 type EventDetails struct {
 	Id          int64
 	Name        string
 	CreatedDate time.Time
 	Data        string
 	CaseDataId  int64
+	UserId      string
 }
 
 type EventFieldChange struct {
@@ -26,7 +39,8 @@ type EventFieldChange struct {
 	CreatedDate     time.Time
 	SourceEventId   int64
 	SourceEventName string
-	OperationType   helper.OperationType
+	OperationType   OperationType
+	UserId          string
 }
 
 type CasesWithEventDetails map[int64]map[int64]EventDetails
@@ -97,7 +111,7 @@ func detectEventModifications(caseReference int64, eventDetails map[int64]EventD
 		var compareWith jsonNode
 		helper.MustUnmarshal([]byte(eventDetail.Data), &compareWith)
 		compareJsonNodes(base, compareWith, differences, strconv.FormatInt(caseReference, 10)+"->", eventId,
-			eventDetail.CreatedDate, eventDetail.Name)
+			eventDetail.CreatedDate, eventDetail.Name, eventDetail.UserId)
 		base = compareWith
 	}
 
@@ -105,7 +119,7 @@ func detectEventModifications(caseReference int64, eventDetails map[int64]EventD
 }
 
 func compareJsonNodes(base, compareWith interface{}, differences *differences, parentPath string, eventId int64,
-	createdDate time.Time, eventName string) {
+	createdDate time.Time, eventName string, userId string) {
 	baseNode, isBaseObject := convertToMap(base)
 	compareNode, isCompareObject := convertToMap(compareWith)
 
@@ -113,17 +127,17 @@ func compareJsonNodes(base, compareWith interface{}, differences *differences, p
 		for key, value := range baseNode {
 			currentPath := fmt.Sprintf("%s.%s", parentPath, key)
 			if compareValue, ok := compareNode[key]; ok {
-				compareJsonNodes(value, compareValue, differences, currentPath, eventId, createdDate, eventName)
+				compareJsonNodes(value, compareValue, differences, currentPath, eventId, createdDate, eventName, userId)
 			} else {
 				differences.recordDifferenceAtPath(currentPath, createDifference(value, "", eventId,
-					createdDate, helper.Deleted, eventName))
+					createdDate, Deleted, eventName, userId))
 			}
 		}
 		for key, value := range compareNode {
 			currentPath := fmt.Sprintf("%s.%s", parentPath, key)
 			if _, ok := baseNode[key]; !ok {
 				differences.recordDifferenceAtPath(currentPath, createDifference("", value, eventId,
-					createdDate, helper.Added, eventName))
+					createdDate, Added, eventName, userId))
 			}
 		}
 	} else {
@@ -132,20 +146,20 @@ func compareJsonNodes(base, compareWith interface{}, differences *differences, p
 		if isBaseArray && isCompareArray {
 			if len(baseArray) > len(compareArray) {
 				differences.recordDifferenceAtPath(parentPath, createDifference(base, compareWith, eventId, createdDate,
-					helper.ArrayShrunk, eventName))
+					ArrayShrunk, eventName, userId))
 			} else if len(baseArray) < len(compareArray) {
 				differences.recordDifferenceAtPath(parentPath, createDifference(base, compareWith, eventId, createdDate,
-					helper.ArrayExtended, eventName))
+					ArrayExtended, eventName, userId))
 			} else if !compareArrays(baseArray, compareArray) {
 				differences.recordDifferenceAtPath(parentPath, createDifference(base, compareWith, eventId, createdDate,
-					helper.ArrayModified, eventName))
+					ArrayModified, eventName, userId))
 			}
 		} else if !compareWithEqual(base, compareWith) {
 			differences.recordDifferenceAtPath(parentPath, createDifference(base, compareWith, eventId, createdDate,
-				helper.Modified, eventName))
+				Modified, eventName, userId))
 		} else {
 			differences.recordDifferenceAtPath(parentPath, createDifference(base, compareWith, eventId, createdDate,
-				helper.NoChange, eventName))
+				NoChange, eventName, userId))
 		}
 	}
 }
@@ -222,7 +236,7 @@ func compareArrays(base, compare []interface{}) bool {
 		}
 	}
 
-	for key, _ := range compareMap {
+	for key := range compareMap {
 		_, ok := baseMap[key]
 		if !ok {
 			return false
@@ -234,11 +248,11 @@ func compareArrays(base, compare []interface{}) bool {
 
 func (d *differences) recordDifferenceAtPath(path string, difference EventFieldChange) {
 	if !isNotEmpty(difference.OldRecord, difference.NewRecord) {
-		difference.OperationType = helper.NoChange
+		difference.OperationType = NoChange
 	}
 
 	if _, ok := d.differencesByPath[path]; !ok {
-		if difference.OperationType != helper.NoChange {
+		if difference.OperationType != NoChange {
 			d.differencesByPath[path] = make([]EventFieldChange, 0)
 		} else {
 			return
@@ -266,7 +280,7 @@ func compareWithEqual(base, compareWith interface{}) bool {
 }
 
 func createDifference(oldRecord, newRecord interface{}, eventId int64, createdDate time.Time,
-	operationType helper.OperationType, eventName string) EventFieldChange {
+	operationType OperationType, eventName string, userId string) EventFieldChange {
 
 	oldRecordValue, oBase := oldRecord.(string)
 	if !oBase {
@@ -287,5 +301,6 @@ func createDifference(oldRecord, newRecord interface{}, eventId int64, createdDa
 		SourceEventName: eventName,
 		CreatedDate:     createdDate,
 		OperationType:   operationType,
+		UserId:          userId,
 	}
 }

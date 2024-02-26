@@ -12,13 +12,6 @@ import (
 	"time"
 )
 
-const (
-	hoursInDay      = 24
-	minutesInHour   = 60
-	secondsInMinute = 60
-	nanoseconds     = 999999999
-)
-
 type Service struct {
 	configuration *config.Configurations
 	activeRules   *[]comparator.Rule
@@ -227,7 +220,9 @@ func sendError(resultChan chan<- comparisonResult, transactionId string, error e
 	resultChan <- result
 }
 
-func (s Service) saveReport(transactionId string, analyzeResult *comparator.AnalyzeResult, eventDifferences comparator.EventFieldChanges) error {
+func (s Service) saveReport(transactionId string, analyzeResult *comparator.AnalyzeResult,
+	eventDifferences comparator.EventFieldChanges) error {
+
 	if analyzeResult.IsNotEmpty() || s.configuration.Report.IncludeEmptyChange {
 		eventDataReportEntities, err := comparator.PrepareReportEntities(eventDifferences, analyzeResult, s.configuration)
 		if err != nil {
@@ -268,6 +263,7 @@ func getCasesWithEventDetails(cases []CaseDataEntity) comparator.CasesWithEventD
 			CreatedDate: caseData.EventCreatedDate,
 			Data:        caseData.EventData,
 			CaseDataId:  caseData.CaseDataId,
+			UserId:      caseData.UserId,
 		}
 	}
 
