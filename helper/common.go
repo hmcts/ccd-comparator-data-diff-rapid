@@ -6,18 +6,6 @@ import (
 	"time"
 )
 
-type OperationType string
-
-const (
-	Added         OperationType = "ADDED"
-	Deleted       OperationType = "DELETED"
-	Modified      OperationType = "MODIFIED"
-	ArrayModified OperationType = "ARRAY_MODIFIED"
-	ArrayExtended OperationType = "ARRAY_EXTENDED"
-	ArrayShrunk   OperationType = "ARRAY_SHRUNK"
-	NoChange      OperationType = "NO_CHANGE"
-)
-
 const defaultTimeStampLayout = "2006-01-02T15:04:05.999999"
 
 func MustParseTime(layout, value string) time.Time {

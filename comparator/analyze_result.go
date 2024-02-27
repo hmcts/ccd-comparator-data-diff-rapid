@@ -6,28 +6,28 @@ import (
 )
 
 type AnalyzeResult struct {
-	result map[string]string
+	result map[string]Violation
 	mutex  sync.RWMutex
 }
 
 func NewAnalyzeResult() *AnalyzeResult {
 	return &AnalyzeResult{
-		result: make(map[string]string),
+		result: make(map[string]Violation),
 	}
 }
 
-func (a *AnalyzeResult) Get(combinedReference string, sourceEventId int64) string {
+func (a *AnalyzeResult) Get(combinedReference string, sourceEventId int64) Violation {
 	a.mutex.RLock()
 	defer a.mutex.RUnlock()
 	key := a.generateKey(combinedReference, sourceEventId)
 	return a.result[key]
 }
 
-func (a *AnalyzeResult) Put(combinedReference string, sourceEventId int64, analyzeMessage string) {
+func (a *AnalyzeResult) Put(combinedReference string, violation Violation) {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
-	key := a.generateKey(combinedReference, sourceEventId)
-	a.result[key] = analyzeMessage
+	key := a.generateKey(combinedReference, violation.sourceEventId)
+	a.result[key] = violation
 }
 
 func (a *AnalyzeResult) IsNotEmpty() bool {

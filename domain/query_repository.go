@@ -27,6 +27,7 @@ type CaseDataEntity struct {
 	EventName        string    `db:"event_name"`
 	EventCreatedDate time.Time `db:"event_created_date"`
 	EventData        string    `db:"event_data"`
+	UserId           string    `db:"user_id"`
 }
 
 func NewQueryRepository(db store.DB) QueryRepository {
@@ -35,13 +36,16 @@ func NewQueryRepository(db store.DB) QueryRepository {
 
 func (r queryRepository) findCasesByEventsInImpactPeriod(comparison Comparison) ([]string, error) {
 	var caseIDs []string
-	err := r.db.Select(&caseIDs, `SELECT DISTINCT cd.id FROM case_data cd
-							INNER JOIN case_event ce ON cd.id = ce.case_data_id
-							WHERE cd.jurisdiction = $1
-								AND cd.case_type_id = $2
-								AND ce.created_date >= $3
-								AND ce.created_date <= $4
-		`, comparison.Jurisdiction, comparison.CaseTypeId, comparison.StartTime, comparison.SearchPeriodEndTime)
+	err := r.db.Select(&caseIDs, `SELECT cd.id FROM case_data cd
+								INNER JOIN case_event ce ON cd.id = ce.case_data_id
+								WHERE cd.jurisdiction = $1
+									AND cd.case_type_id = $2
+									AND ce.created_date >= $3
+									AND ce.created_date <= $4 
+								GROUP BY cd.id 
+								HAVING 	COUNT(ce.id) > 1
+								ORDER BY cd.id
+			`, comparison.Jurisdiction, comparison.CaseTypeId, comparison.StartTime, comparison.SearchPeriodEndTime)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "error while retrieving caseIDs in findCasesByJurisdictionInImpactPeriod()")
@@ -58,7 +62,7 @@ func (r queryRepository) findCasesByJurisdictionInImpactPeriod(caseIds []string)
 	err := r.db.Select(&caseData, `SELECT cd.id as case_id, cd.created_date as case_created_date,
 							cd.jurisdiction as jurisdiction, cd.case_type_id as case_type_id, cd.reference as reference,
 							ce.case_data_id as case_data_id, ce.id as event_id, ce.event_id as event_name, 
-							ce.created_date as event_created_date, ce.data as event_data
+							ce.user_id as user_id, ce.created_date as event_created_date, ce.data as event_data
 							FROM case_data cd inner join case_event ce on cd.id = ce.case_data_id
 							WHERE cd.id IN (`+caseIDQuery+`)`)
 
