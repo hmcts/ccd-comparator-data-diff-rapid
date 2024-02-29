@@ -8,7 +8,7 @@ import (
 )
 
 func TestEventDifferencesData_ProcessEventDiff(t *testing.T) {
-	rule1 := NewSameValueAfterChangeRule(0, false)
+	rule1 := NewStaticFieldChangeRule(0, false)
 	rule2 := NewFieldChangeCountRule(0)
 	activeRules := []Rule{rule1, rule2}
 

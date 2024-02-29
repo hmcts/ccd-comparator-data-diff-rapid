@@ -41,7 +41,7 @@ func TestSameValueAfterChangeRule_CreateViolationInThreshold(t *testing.T) {
 		},
 	}
 
-	rule := NewSameValueAfterChangeRule(10000, false)
+	rule := NewStaticFieldChangeRule(10000, false)
 	fieldName := "field1"
 	result := rule.CheckForViolation(fieldName, fieldDifferences)
 
@@ -94,7 +94,7 @@ func TestSameValueAfterChangeRule_IgnoreViolationExceedThreshold(t *testing.T) {
 		},
 	}
 
-	rule := NewSameValueAfterChangeRule(10, false)
+	rule := NewStaticFieldChangeRule(10, false)
 	fieldName := "field1"
 	result := rule.CheckForViolation(fieldName, fieldDifferences)
 
@@ -135,7 +135,7 @@ func TestSameValueAfterChangeRule_ViolationWith0Threshold(t *testing.T) {
 		},
 	}
 
-	rule := NewSameValueAfterChangeRule(0, false)
+	rule := NewStaticFieldChangeRule(0, false)
 	fieldName := "field1"
 	result := rule.CheckForViolation(fieldName, fieldDifferences)
 
@@ -188,7 +188,7 @@ func TestSameValueAfterChangeRule_CreateViolationInThresholdAndMask(t *testing.T
 		},
 	}
 
-	rule := NewSameValueAfterChangeRule(10000, true)
+	rule := NewStaticFieldChangeRule(10000, true)
 	fieldName := "field1"
 	result := rule.CheckForViolation(fieldName, fieldDifferences)
 
@@ -242,7 +242,7 @@ func TestSameValueAfterChangeRule_CreateViolationInThresholdOldValueEmpty(t *tes
 		},
 	}
 
-	rule := NewSameValueAfterChangeRule(10000, false)
+	rule := NewStaticFieldChangeRule(10000, false)
 	fieldName := "field1"
 	result := rule.CheckForViolation(fieldName, fieldDifferences)
 
