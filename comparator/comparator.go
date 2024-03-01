@@ -262,8 +262,8 @@ func (d *differences) recordDifferenceAtPath(path string, difference EventFieldC
 }
 
 func isNotEmpty(oldValue, newValue string) bool {
-	return (oldValue != "" && oldValue != "null" && oldValue != "{}") ||
-		(newValue != "" && newValue != "null" && newValue != "{}")
+	return (oldValue != "" && oldValue != "null" && oldValue != "{}" && oldValue != "[]") ||
+		(newValue != "" && newValue != "null" && newValue != "{}" && newValue != "[]")
 }
 
 func compareWithEqual(base, compareWith interface{}) bool {
