@@ -1,6 +1,6 @@
 
 -- Create table for event data report
-create TABLE IF NOT EXISTS public.event_data_report_v4 (
+create TABLE IF NOT EXISTS public.event_data_report_v5 (
     id SERIAL,
     event_id bigint,
     reference VARCHAR(255),
@@ -16,6 +16,7 @@ create TABLE IF NOT EXISTS public.event_data_report_v4 (
     analyze_result_detail text,
     change_type VARCHAR(255),
     potential_risk BOOLEAN NOT NULL DEFAULT FALSE,
-    case_type_id VARCHAR(255)
+    case_type_id VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-alter sequence public.event_data_report_v4_id_seq OWNED BY public.event_data_report_v4.id CACHE 50;
+alter sequence public.event_data_report_v5_id_seq OWNED BY public.event_data_report_v5.id CACHE 50;

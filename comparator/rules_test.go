@@ -21,7 +21,7 @@ func TestSameValueAfterChangeRule_CreateViolationInThreshold(t *testing.T) {
 			CreatedDate:     createdDateBase,
 			SourceEventId:   1,
 			SourceEventName: "Event1",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 		{
 			OldRecord:       "value1",
@@ -29,7 +29,7 @@ func TestSameValueAfterChangeRule_CreateViolationInThreshold(t *testing.T) {
 			CreatedDate:     createdDateBaseSecond,
 			SourceEventId:   2,
 			SourceEventName: "Event2",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 		{
 			OldRecord:       "value2",
@@ -37,7 +37,7 @@ func TestSameValueAfterChangeRule_CreateViolationInThreshold(t *testing.T) {
 			CreatedDate:     createdDateBaseThird,
 			SourceEventId:   3,
 			SourceEventName: "Event3",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 	}
 
@@ -54,11 +54,11 @@ func TestSameValueAfterChangeRule_CreateViolationInThreshold(t *testing.T) {
 		helper.FormatTimeStamp(createdDateBaseSecond) + ". The field field1 was updated back to old value value1 " +
 		"in event id 3 on " + helper.FormatTimeStamp(createdDateBaseThird)
 
-	if result.Left != 3 {
-		t.Errorf("Incorrect SourceEventId. Expected: %d, Got: %d", expectedSourceEventId, result.Left)
+	if result[0].sourceEventId != 3 {
+		t.Errorf("Incorrect SourceEventId. Expected: %d, Got: %d", expectedSourceEventId, result[0].sourceEventId)
 	}
-	if result.Right != expectedMessage {
-		t.Errorf("Incorrect violation message. Expected: %s, Got: %s", expectedMessage, result.Right)
+	if result[0].message != expectedMessage {
+		t.Errorf("Incorrect violation message. Expected: %s, Got: %s", expectedMessage, result[0].message)
 	}
 }
 
@@ -74,7 +74,7 @@ func TestSameValueAfterChangeRule_IgnoreViolationExceedThreshold(t *testing.T) {
 			CreatedDate:     createdDateBase,
 			SourceEventId:   1,
 			SourceEventName: "Event1",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 		{
 			OldRecord:       "value1",
@@ -82,7 +82,7 @@ func TestSameValueAfterChangeRule_IgnoreViolationExceedThreshold(t *testing.T) {
 			CreatedDate:     createdDateBaseSecond,
 			SourceEventId:   2,
 			SourceEventName: "Event2",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 		{
 			OldRecord:       "value2",
@@ -90,7 +90,7 @@ func TestSameValueAfterChangeRule_IgnoreViolationExceedThreshold(t *testing.T) {
 			CreatedDate:     createdDateBaseThird,
 			SourceEventId:   3,
 			SourceEventName: "Event3",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 	}
 
@@ -115,7 +115,7 @@ func TestSameValueAfterChangeRule_ViolationWith0Threshold(t *testing.T) {
 			CreatedDate:     createdDateBase,
 			SourceEventId:   1,
 			SourceEventName: "Event1",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 		{
 			OldRecord:       "value1",
@@ -123,7 +123,7 @@ func TestSameValueAfterChangeRule_ViolationWith0Threshold(t *testing.T) {
 			CreatedDate:     createdDateBaseSecond,
 			SourceEventId:   2,
 			SourceEventName: "Event2",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 		{
 			OldRecord:       "value2",
@@ -131,7 +131,7 @@ func TestSameValueAfterChangeRule_ViolationWith0Threshold(t *testing.T) {
 			CreatedDate:     createdDateBaseThird,
 			SourceEventId:   3,
 			SourceEventName: "Event3",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 	}
 
@@ -148,11 +148,11 @@ func TestSameValueAfterChangeRule_ViolationWith0Threshold(t *testing.T) {
 		helper.FormatTimeStamp(createdDateBaseSecond) + ". The field field1 was updated back to old value value1 " +
 		"in event id 3 on " + helper.FormatTimeStamp(createdDateBaseThird)
 
-	if result.Left != 3 {
-		t.Errorf("Incorrect SourceEventId. Expected: %d, Got: %d", expectedSourceEventId, result.Left)
+	if result[0].sourceEventId != 3 {
+		t.Errorf("Incorrect SourceEventId. Expected: %d, Got: %d", expectedSourceEventId, result[0].sourceEventId)
 	}
-	if result.Right != expectedMessage {
-		t.Errorf("Incorrect violation message. Expected: %s, Got: %s", expectedMessage, result.Right)
+	if result[0].message != expectedMessage {
+		t.Errorf("Incorrect violation message. Expected: %s, Got: %s", expectedMessage, result[0].message)
 	}
 }
 
@@ -168,7 +168,7 @@ func TestSameValueAfterChangeRule_CreateViolationInThresholdAndMask(t *testing.T
 			CreatedDate:     createdDateBase,
 			SourceEventId:   1,
 			SourceEventName: "Event1",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 		{
 			OldRecord:       "value1",
@@ -176,7 +176,7 @@ func TestSameValueAfterChangeRule_CreateViolationInThresholdAndMask(t *testing.T
 			CreatedDate:     createdDateBaseSecond,
 			SourceEventId:   2,
 			SourceEventName: "Event2",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 		{
 			OldRecord:       "value2",
@@ -184,7 +184,7 @@ func TestSameValueAfterChangeRule_CreateViolationInThresholdAndMask(t *testing.T
 			CreatedDate:     createdDateBaseThird,
 			SourceEventId:   3,
 			SourceEventName: "Event3",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 	}
 
@@ -201,11 +201,11 @@ func TestSameValueAfterChangeRule_CreateViolationInThresholdAndMask(t *testing.T
 		helper.FormatTimeStamp(createdDateBaseSecond) + ". The field field1 was updated back to old value *** " +
 		"in event id 3 on " + helper.FormatTimeStamp(createdDateBaseThird)
 
-	if result.Left != 3 {
-		t.Errorf("Incorrect SourceEventId. Expected: %d, Got: %d", expectedSourceEventId, result.Left)
+	if result[0].sourceEventId != 3 {
+		t.Errorf("Incorrect SourceEventId. Expected: %d, Got: %d", expectedSourceEventId, result[0].sourceEventId)
 	}
-	if result.Right != expectedMessage {
-		t.Errorf("Incorrect violation message. Expected: %s, Got: %s", expectedMessage, result.Right)
+	if result[0].message != expectedMessage {
+		t.Errorf("Incorrect violation message. Expected: %s, Got: %s", expectedMessage, result[0].message)
 	}
 }
 
@@ -222,7 +222,7 @@ func TestSameValueAfterChangeRule_CreateViolationInThresholdOldValueEmpty(t *tes
 			CreatedDate:     createdDateBase,
 			SourceEventId:   1,
 			SourceEventName: "Event1",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 		{
 			OldRecord:       value25Char,
@@ -230,7 +230,7 @@ func TestSameValueAfterChangeRule_CreateViolationInThresholdOldValueEmpty(t *tes
 			CreatedDate:     createdDateBaseSecond,
 			SourceEventId:   2,
 			SourceEventName: "Event2",
-			OperationType:   helper.Deleted,
+			OperationType:   Deleted,
 		},
 		{
 			OldRecord:       "value2",
@@ -238,7 +238,7 @@ func TestSameValueAfterChangeRule_CreateViolationInThresholdOldValueEmpty(t *tes
 			CreatedDate:     createdDateBaseThird,
 			SourceEventId:   3,
 			SourceEventName: "Event3",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 	}
 
@@ -255,11 +255,11 @@ func TestSameValueAfterChangeRule_CreateViolationInThresholdOldValueEmpty(t *tes
 		helper.FormatTimeStamp(createdDateBaseSecond) + ". The field field1 was updated back to old value value1value1value1value1v " +
 		"in event id 3 on " + helper.FormatTimeStamp(createdDateBaseThird)
 
-	if result.Left != int64(expectedSourceEventId) {
-		t.Errorf("Incorrect SourceEventId. Expected: %d, Got: %d", expectedSourceEventId, result.Left)
+	if result[0].sourceEventId != int64(expectedSourceEventId) {
+		t.Errorf("Incorrect SourceEventId. Expected: %d, Got: %d", expectedSourceEventId, result[0].sourceEventId)
 	}
-	if result.Right != expectedMessage {
-		t.Errorf("Incorrect violation message. Expected: %s, Got: %s", expectedMessage, result.Right)
+	if result[0].message != expectedMessage {
+		t.Errorf("Incorrect violation message. Expected: %s, Got: %s", expectedMessage, result[0].message)
 	}
 }
 
@@ -282,10 +282,10 @@ func TestFieldChangeCountRule_CheckForViolation(t *testing.T) {
 	result = rule.CheckForViolation(fieldName, differences)
 	expectedMessage := fmt.Sprintf("JsonNode field change threshold %d exceeded for field %s.", rule.fieldChangeThreshold, fieldName)
 	expectedSourceEventId := 4
-	if result.Left != 4 {
-		t.Errorf("Incorrect SourceEventId. Expected: %d, Got: %d", expectedSourceEventId, result.Left)
+	if result[0].sourceEventId != 4 {
+		t.Errorf("Incorrect SourceEventId. Expected: %d, Got: %d", expectedSourceEventId, result[0].sourceEventId)
 	}
-	if result.Right != expectedMessage {
-		t.Errorf("Incorrect violation message. Expected: %s, Got: %s", expectedMessage, result.Right)
+	if result[0].message != expectedMessage {
+		t.Errorf("Incorrect violation message. Expected: %s, Got: %s", expectedMessage, result[0].message)
 	}
 }

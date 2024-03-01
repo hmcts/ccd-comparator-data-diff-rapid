@@ -12,8 +12,13 @@ type MockQueryRepository struct {
 	mock.Mock
 }
 
-func (m *MockQueryRepository) findCasesByJurisdictionInImpactPeriod(comparison Comparison) ([]CaseDataEntity, error) {
+func (m *MockQueryRepository) findCasesByEventsInImpactPeriod(comparison Comparison) ([]string, error) {
 	args := m.Called(comparison)
+	return args.Get(0).([]string), args.Error(1)
+}
+
+func (m *MockQueryRepository) findCasesByJurisdictionInImpactPeriod(caseIds []string) ([]CaseDataEntity, error) {
+	args := m.Called(caseIds)
 	return args.Get(0).([]CaseDataEntity), args.Error(1)
 }
 
@@ -40,12 +45,15 @@ func TestService_CompareEventsInImpactPeriodHappyPath(t *testing.T) {
 	startTime := time.Date(2023, 8, 1, 0, 0, 0, 0, time.UTC)
 	endTime := time.Date(2023, 8, 1, 0, 0, 0, 0, time.UTC)
 
-	mockQueryRepo.On("findCasesByJurisdictionInImpactPeriod", Comparison{
+	mockQueryRepo.On("findCasesByEventsInImpactPeriod", Comparison{
 		Jurisdiction:        "jurisdiction",
 		CaseTypeId:          "caseType",
 		StartTime:           startTime,
 		SearchPeriodEndTime: endTime,
 	}).
+		Return([]string{"1"}, nil)
+
+	mockQueryRepo.On("findCasesByJurisdictionInImpactPeriod", []string{"1"}).
 		Return([]CaseDataEntity{
 			{
 				Reference:        1,
@@ -109,12 +117,14 @@ func TestService_CompareEventsInImpactIgnoreSaveReport(t *testing.T) {
 
 	startTime := time.Date(2023, 8, 1, 0, 0, 0, 0, time.UTC)
 	endTime := time.Date(2023, 8, 1, 0, 0, 0, 0, time.UTC)
-	mockQueryRepo.On("findCasesByJurisdictionInImpactPeriod", Comparison{
+	mockQueryRepo.On("findCasesByEventsInImpactPeriod", Comparison{
 		Jurisdiction:        "jurisdiction",
 		CaseTypeId:          "caseType",
 		StartTime:           startTime,
 		SearchPeriodEndTime: endTime,
 	}).
+		Return([]string{"1"}, nil)
+	mockQueryRepo.On("findCasesByJurisdictionInImpactPeriod", []string{"1"}).
 		Return([]CaseDataEntity{
 			{
 				Reference:        1,
@@ -176,15 +186,6 @@ func TestService_CompareEventsInImpactNoCaseData(t *testing.T) {
 
 	startTime := time.Date(2023, 8, 1, 0, 0, 0, 0, time.UTC)
 	endTime := time.Date(2023, 8, 1, 0, 0, 0, 0, time.UTC)
-	mockQueryRepo.On("findCasesByJurisdictionInImpactPeriod", Comparison{
-		Jurisdiction:        "jurisdiction",
-		CaseTypeId:          "caseType",
-		StartTime:           startTime,
-		SearchPeriodEndTime: endTime,
-	}).
-		Return([]CaseDataEntity{}, nil)
-
-	mockSaveRepo.On("saveAllEventDataReport", mock.Anything).Return(nil)
 
 	c := Comparison{
 		Jurisdiction:        "jurisdiction",
@@ -192,9 +193,18 @@ func TestService_CompareEventsInImpactNoCaseData(t *testing.T) {
 		StartTime:           startTime,
 		SearchPeriodEndTime: endTime,
 	}
+
+	mockQueryRepo.On("findCasesByEventsInImpactPeriod", c).Return([]string{}, nil)
+
+	mockQueryRepo.On("findCasesByJurisdictionInImpactPeriod", []string{}).
+		Return([]CaseDataEntity{}, nil)
+
+	mockSaveRepo.On("saveAllEventDataReport", mock.Anything).Return(nil)
+
 	service.CompareEventsInImpactPeriod(c)
 
-	mockQueryRepo.AssertExpectations(t)
+	mockQueryRepo.AssertCalled(t, "findCasesByEventsInImpactPeriod", c)
+	mockQueryRepo.AssertNotCalled(t, "findCasesByJurisdictionInImpactPeriod")
 	mockSaveRepo.AssertNotCalled(t, "saveAllEventDataReport")
 }
 
@@ -212,12 +222,16 @@ func TestService_CompareEventsInImpactEmptyEventFieldChanges(t *testing.T) {
 
 	startTime := time.Date(2023, 8, 1, 0, 0, 0, 0, time.UTC)
 	endTime := time.Date(2023, 8, 1, 0, 0, 0, 0, time.UTC)
-	mockQueryRepo.On("findCasesByJurisdictionInImpactPeriod", Comparison{
+
+	mockQueryRepo.On("findCasesByEventsInImpactPeriod", Comparison{
 		Jurisdiction:        "jurisdiction",
 		CaseTypeId:          "caseType",
 		StartTime:           startTime,
 		SearchPeriodEndTime: endTime,
 	}).
+		Return([]string{"1"}, nil)
+
+	mockQueryRepo.On("findCasesByJurisdictionInImpactPeriod", []string{"1"}).
 		Return([]CaseDataEntity{
 			{
 				EventId:          1,
@@ -253,13 +267,17 @@ func TestService_CompareEventsInImpactErrorFromFindCasesByJurisdictionInImpactPe
 
 	startTime := time.Date(2023, 8, 1, 0, 0, 0, 0, time.UTC)
 	endTime := time.Date(2023, 8, 1, 0, 0, 0, 0, time.UTC)
-	mockQueryRepo.On("findCasesByJurisdictionInImpactPeriod", Comparison{
+
+	mockQueryRepo.On("findCasesByEventsInImpactPeriod", Comparison{
 		Jurisdiction:        "jurisdiction",
 		CaseTypeId:          "caseType",
 		StartTime:           startTime,
 		SearchPeriodEndTime: endTime,
 	}).
-		Return([]CaseDataEntity{}, errors.New("error occured"))
+		Return([]string{"1"}, nil)
+
+	mockQueryRepo.On("findCasesByJurisdictionInImpactPeriod", []string{"1"}).
+		Return([]CaseDataEntity{}, errors.New("error occurred"))
 
 	c := Comparison{
 		Jurisdiction:        "jurisdiction",
@@ -285,12 +303,16 @@ func TestService_CompareEventsInImpactErrorFromSaveAllEventDataReport(t *testing
 
 	startTime := time.Date(2023, 8, 1, 0, 0, 0, 0, time.UTC)
 	endTime := time.Date(2023, 8, 1, 0, 0, 0, 0, time.UTC)
-	mockQueryRepo.On("findCasesByJurisdictionInImpactPeriod", Comparison{
+
+	mockQueryRepo.On("findCasesByEventsInImpactPeriod", Comparison{
 		Jurisdiction:        "jurisdiction",
 		CaseTypeId:          "caseType",
 		StartTime:           startTime,
 		SearchPeriodEndTime: endTime,
 	}).
+		Return([]string{"1"}, nil)
+
+	mockQueryRepo.On("findCasesByJurisdictionInImpactPeriod", []string{"1"}).
 		Return([]CaseDataEntity{
 			{
 				Reference:        1,
@@ -353,12 +375,16 @@ func TestService_CompareEventsInImpactPeriodNoFieldChange(t *testing.T) {
 
 	startTime := time.Date(2023, 8, 1, 0, 0, 0, 0, time.UTC)
 	endTime := time.Date(2023, 8, 1, 0, 0, 0, 0, time.UTC)
-	mockQueryRepo.On("findCasesByJurisdictionInImpactPeriod", Comparison{
+
+	mockQueryRepo.On("findCasesByEventsInImpactPeriod", Comparison{
 		Jurisdiction:        "jurisdiction",
 		CaseTypeId:          "caseType",
 		StartTime:           startTime,
 		SearchPeriodEndTime: endTime,
 	}).
+		Return([]string{"1"}, nil)
+
+	mockQueryRepo.On("findCasesByJurisdictionInImpactPeriod", []string{"1"}).
 		Return([]CaseDataEntity{
 			{
 				Reference:        1,
@@ -406,12 +432,16 @@ func TestService_CompareEventsInImpactPeriodSkipEmptyChange(t *testing.T) {
 
 	startTime := time.Date(2023, 8, 1, 0, 0, 0, 0, time.UTC)
 	endTime := time.Date(2023, 8, 1, 0, 0, 0, 0, time.UTC)
-	mockQueryRepo.On("findCasesByJurisdictionInImpactPeriod", Comparison{
+
+	mockQueryRepo.On("findCasesByEventsInImpactPeriod", Comparison{
 		Jurisdiction:        "jurisdiction",
 		CaseTypeId:          "caseType",
 		StartTime:           startTime,
 		SearchPeriodEndTime: endTime,
 	}).
+		Return([]string{"1"}, nil)
+
+	mockQueryRepo.On("findCasesByJurisdictionInImpactPeriod", []string{"1"}).
 		Return([]CaseDataEntity{
 			{
 				Reference:        1,

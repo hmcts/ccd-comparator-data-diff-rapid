@@ -7,21 +7,33 @@ import (
 func TestAnalyzeResult(t *testing.T) {
 	analyzeResult := NewAnalyzeResult()
 
+	v1 := Violation{
+		sourceEventId:            123,
+		previousEventCreatedDate: "1",
+		previousEventUserId:      "1",
+		message:                  "Message1",
+	}
+	v2 := Violation{
+		sourceEventId:            456,
+		previousEventCreatedDate: "2",
+		previousEventUserId:      "2",
+		message:                  "Message2",
+	}
 	// Test Put and Get methods
-	analyzeResult.Put("ref1", 123, "Message1")
-	analyzeResult.Put("ref2", 456, "Message2")
+	analyzeResult.Put("ref1", v1)
+	analyzeResult.Put("ref2", v2)
 
 	expectedMessage1 := "Message1"
 	expectedMessage2 := "Message2"
-	actualMessage1 := analyzeResult.Get("ref1", 123)
-	actualMessage2 := analyzeResult.Get("ref2", 456)
+	v1Return := analyzeResult.Get("ref1", 123)
+	v2Return := analyzeResult.Get("ref2", 456)
 
-	if actualMessage1 != expectedMessage1 {
-		t.Errorf("Expected message for ref1 and 123: %s, but got: %s", expectedMessage1, actualMessage1)
+	if v1Return.message != expectedMessage1 {
+		t.Errorf("Expected message for ref1 and 123: %s, but got: %s", expectedMessage1, v1Return.message)
 	}
 
-	if actualMessage2 != expectedMessage2 {
-		t.Errorf("Expected message for ref2 and 456: %s, but got: %s", expectedMessage2, actualMessage2)
+	if v2Return.message != expectedMessage2 {
+		t.Errorf("Expected message for ref2 and 456: %s, but got: %s", expectedMessage2, v2Return.message)
 	}
 
 	// Test IsNotEmpty and IsEmpty methods

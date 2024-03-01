@@ -12,11 +12,6 @@ func TestFindCasesByJurisdictionInImpactPeriod(t *testing.T) {
 	mockDB := new(MockDB)
 	queryRepo := NewQueryRepository(mockDB)
 
-	jurisdiction := "TestJurisdiction"
-	caseTypeId := "TestCaseType"
-	startTime := time.Now()
-	endTime := startTime.Add(time.Hour)
-
 	expectedCases := []CaseDataEntity{
 		{
 			CaseId:           1,
@@ -41,18 +36,12 @@ func TestFindCasesByJurisdictionInImpactPeriod(t *testing.T) {
 			dest := args.Get(0)
 			casesPtr, ok := dest.(*[]CaseDataEntity)
 			if !ok {
-				t.Fatalf("Invalid type for destination: %T", dest)
+				t.Fatalf("Invalid jsonx for destination: %T", dest)
 			}
 			*casesPtr = expectedCases
 		})
 
-	c := Comparison{
-		Jurisdiction:        jurisdiction,
-		CaseTypeId:          caseTypeId,
-		StartTime:           startTime,
-		SearchPeriodEndTime: endTime,
-	}
-	cases, err := queryRepo.findCasesByJurisdictionInImpactPeriod(c)
+	cases, err := queryRepo.findCasesByJurisdictionInImpactPeriod([]string{"1"})
 
 	assert.NoError(t, err)
 	assert.NotNil(t, cases)
@@ -62,7 +51,71 @@ func TestFindCasesByJurisdictionInImpactPeriod(t *testing.T) {
 	//mockTx.AssertExpectations(t)
 }
 
+func TestFindCasesByEventsInImpactPeriod(t *testing.T) {
+	mockDB := new(MockDB)
+	queryRepo := NewQueryRepository(mockDB)
+
+	expectedCaseIds := []string{"1", "2", "3"}
+
+	mockDB.On("Select",
+		mock.AnythingOfType("*[]string"),
+		mock.AnythingOfType("string"),
+		mock.Anything).
+		Return(nil).
+		Run(func(args mock.Arguments) {
+			dest := args.Get(0)
+			casesPtr, ok := dest.(*[]string)
+			if !ok {
+				t.Fatalf("Invalid jsonx for destination: %T", dest)
+			}
+			*casesPtr = expectedCaseIds
+		})
+
+	jurisdiction := "TestJurisdiction"
+	caseTypeId := "TestCaseType"
+	startTime := time.Now()
+	endTime := startTime.Add(time.Hour)
+
+	c := Comparison{
+		Jurisdiction:        jurisdiction,
+		CaseTypeId:          caseTypeId,
+		StartTime:           startTime,
+		SearchPeriodEndTime: endTime,
+	}
+	cases, err := queryRepo.findCasesByEventsInImpactPeriod(c)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, cases)
+	assert.Equal(t, expectedCaseIds, cases)
+
+	mockDB.AssertExpectations(t)
+	//mockTx.AssertExpectations(t)
+}
+
 func TestFindCasesByJurisdictionInImpactPeriodReturnError(t *testing.T) {
+	mockDB := new(MockDB)
+	queryRepo := NewQueryRepository(mockDB)
+
+	expectedError := errors.New("some error")
+
+	mockDB.On("Select",
+		mock.AnythingOfType("*[]domain.CaseDataEntity"),
+		mock.AnythingOfType("string"),
+		mock.Anything).
+		Return(expectedError)
+
+	cases, err := queryRepo.findCasesByJurisdictionInImpactPeriod([]string{"1"})
+
+	unwrappedErr := errors.Cause(err)
+
+	assert.Error(t, err)
+	assert.Nil(t, cases)
+	assert.EqualError(t, unwrappedErr, expectedError.Error())
+
+	mockDB.AssertExpectations(t)
+}
+
+func TestTestFindCasesByEventsInImpactPeriodReturnError(t *testing.T) {
 	mockDB := new(MockDB)
 	queryRepo := NewQueryRepository(mockDB)
 
@@ -74,7 +127,7 @@ func TestFindCasesByJurisdictionInImpactPeriodReturnError(t *testing.T) {
 	expectedError := errors.New("some error")
 
 	mockDB.On("Select",
-		mock.AnythingOfType("*[]domain.CaseDataEntity"),
+		mock.AnythingOfType("*[]string"),
 		mock.AnythingOfType("string"),
 		mock.Anything).
 		Return(expectedError)
@@ -85,7 +138,7 @@ func TestFindCasesByJurisdictionInImpactPeriodReturnError(t *testing.T) {
 		StartTime:           startTime,
 		SearchPeriodEndTime: endTime,
 	}
-	cases, err := queryRepo.findCasesByJurisdictionInImpactPeriod(c)
+	cases, err := queryRepo.findCasesByEventsInImpactPeriod(c)
 
 	unwrappedErr := errors.Cause(err)
 
