@@ -21,11 +21,11 @@ func TestRuleFactory_GetEnabledRuleList(t *testing.T) {
 	}
 
 	// Check if the enabled rules are the correct types
-	_, isSameValueAfterChangeRule := enabledRuleList[0].(*SameValueAfterChangeRule)
+	_, isSameValueAfterChangeRule := enabledRuleList[0].(*StaticFieldChangeRule)
 	_, isFieldChangeCountRule := enabledRuleList[1].(*FieldChangeCountRule)
 
 	if !isSameValueAfterChangeRule || !isFieldChangeCountRule {
-		t.Error("Expected enabled rules to be SameValueAfterChangeRule and FieldChangeCountRule")
+		t.Error("Expected enabled rules to be StaticFieldChangeRule and FieldChangeCountRule")
 	}
 }
 
@@ -38,10 +38,10 @@ func TestRuleFactory_GetSingleRule(t *testing.T) {
 		t.Errorf("Expected 1 enabled rules, but got %d", len(enabledRuleList))
 	}
 
-	_, isSameValueAfterChangeRule := enabledRuleList[0].(*SameValueAfterChangeRule)
+	_, isSameValueAfterChangeRule := enabledRuleList[0].(*StaticFieldChangeRule)
 
 	if !isSameValueAfterChangeRule {
-		t.Error("Expected enabled rules to be SameValueAfterChangeRule")
+		t.Error("Expected enabled rules to be StaticFieldChangeRule")
 	}
 
 	_, isFieldChangeCountRule := enabledRuleList[0].(*FieldChangeCountRule)

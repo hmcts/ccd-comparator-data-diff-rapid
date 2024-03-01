@@ -31,9 +31,13 @@ func (f RuleFactory) createEnabledRuleList(activeAnalyzeRules string) ([]Rule, e
 	var ruleConfig = f.configuration.Scan
 	rules := make([]Rule, 0)
 
-	if enabledRuleTypes[RuleTypeSameValueAfterChange] {
-		rules = append(rules, NewSameValueAfterChangeRule(ruleConfig.Concurrent.Event.ThresholdMilliseconds,
+	if enabledRuleTypes[RuleTypeStaticFieldChange] {
+		rules = append(rules, NewStaticFieldChangeRule(ruleConfig.Concurrent.Event.ThresholdMilliseconds,
 			ruleConfig.Report.MaskValue))
+	}
+	if enabledRuleTypes[RuleTypeDynamicFieldChange] {
+		rules = append(rules, NewDynamicFieldChangeRule(ruleConfig.Concurrent.Event.ThresholdMilliseconds,
+			ruleConfig.Report.MaskValue, ruleConfig.Filter))
 	}
 	if enabledRuleTypes[RuleTypeFieldChangeCount] {
 		rules = append(rules, NewFieldChangeCountRule(ruleConfig.FieldChange.Threshold))
@@ -58,8 +62,10 @@ func parseActiveAnalyzeRules(activeAnalyzeRules string) map[RuleType]bool {
 
 func ruleTypeFromString(name string) (RuleType, bool) {
 	switch name {
-	case "samevalueafterchange":
-		return RuleTypeSameValueAfterChange, true
+	case "staticfieldchange":
+		return RuleTypeStaticFieldChange, true
+	case "dynamicfieldchange":
+		return RuleTypeDynamicFieldChange, true
 	case "fieldchangecount":
 		return RuleTypeFieldChangeCount, true
 	default:
@@ -75,6 +81,7 @@ type RuleType int
 
 const (
 	RuleTypeUnknown RuleType = iota
-	RuleTypeSameValueAfterChange
+	RuleTypeStaticFieldChange
 	RuleTypeFieldChangeCount
+	RuleTypeDynamicFieldChange
 )
