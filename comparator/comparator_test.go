@@ -2,6 +2,7 @@ package comparator
 
 import (
 	"ccd-comparator-data-diff-rapid/helper"
+	"ccd-comparator-data-diff-rapid/jsonx"
 	"reflect"
 	"testing"
 	"time"
@@ -31,7 +32,8 @@ func Test_compareNodes(t *testing.T) {
 					CreatedDate:     createdDate,
 					SourceEventId:   1,
 					SourceEventName: "TestEvent",
-					OperationType:   helper.Modified,
+					OperationType:   Modified,
+					UserId:          "1",
 				},
 			},
 			".field2": {
@@ -41,7 +43,8 @@ func Test_compareNodes(t *testing.T) {
 					CreatedDate:     createdDate,
 					SourceEventId:   1,
 					SourceEventName: "TestEvent",
-					OperationType:   helper.Modified,
+					OperationType:   Modified,
+					UserId:          "1",
 				},
 			},
 			".field3": {
@@ -51,7 +54,8 @@ func Test_compareNodes(t *testing.T) {
 					CreatedDate:     createdDate,
 					SourceEventId:   1,
 					SourceEventName: "TestEvent",
-					OperationType:   helper.Deleted,
+					OperationType:   Deleted,
+					UserId:          "1",
 				},
 			},
 			".field4": {
@@ -61,7 +65,8 @@ func Test_compareNodes(t *testing.T) {
 					CreatedDate:     createdDate,
 					SourceEventId:   1,
 					SourceEventName: "TestEvent",
-					OperationType:   helper.Added,
+					OperationType:   Added,
+					UserId:          "1",
 				},
 			},
 		},
@@ -76,7 +81,8 @@ func Test_compareNodes(t *testing.T) {
 					CreatedDate:     createdDate,
 					SourceEventId:   2,
 					SourceEventName: "ComplexEvent",
-					OperationType:   helper.Modified,
+					OperationType:   Modified,
+					UserId:          "1",
 				},
 			},
 			".field2.subfield1": {
@@ -86,7 +92,8 @@ func Test_compareNodes(t *testing.T) {
 					CreatedDate:     createdDate,
 					SourceEventId:   2,
 					SourceEventName: "ComplexEvent",
-					OperationType:   helper.Modified,
+					OperationType:   Modified,
+					UserId:          "1",
 				},
 			},
 			".field2.subfield2": {
@@ -96,47 +103,8 @@ func Test_compareNodes(t *testing.T) {
 					CreatedDate:     createdDate,
 					SourceEventId:   2,
 					SourceEventName: "ComplexEvent",
-					OperationType:   helper.Modified,
-				},
-			},
-			".field3[0]": {
-				{
-					OldRecord:       "1",
-					NewRecord:       "4",
-					CreatedDate:     createdDate,
-					SourceEventId:   2,
-					SourceEventName: "ComplexEvent",
-					OperationType:   helper.Modified,
-				},
-			},
-			".field3[1]": {
-				{
-					OldRecord:       "2",
-					NewRecord:       "5",
-					CreatedDate:     createdDate,
-					SourceEventId:   2,
-					SourceEventName: "ComplexEvent",
-					OperationType:   helper.Modified,
-				},
-			},
-			".field3[2]": {
-				{
-					OldRecord:       "3",
-					NewRecord:       "6",
-					CreatedDate:     createdDate,
-					SourceEventId:   2,
-					SourceEventName: "ComplexEvent",
-					OperationType:   helper.Modified,
-				},
-			},
-			".field4": {
-				{
-					OldRecord:       "[\"a\",\"b\",\"c\"]",
-					NewRecord:       "[\"a\",\"b\"]",
-					CreatedDate:     createdDate,
-					SourceEventId:   2,
-					SourceEventName: "ComplexEvent",
-					OperationType:   helper.ArrayExtended,
+					OperationType:   Modified,
+					UserId:          "1",
 				},
 			},
 		},
@@ -150,8 +118,8 @@ func Test_compareNodes(t *testing.T) {
 		{
 			name: "PositiveScenario",
 			args: args{
-				base:        jsonNode{"field1": 123, "field2": "abc", "field3": true},
-				compareWith: jsonNode{"field1": 456, "field2": "xyz", "field4": 789},
+				base:        jsonx.NodeAny{"field1": 123, "field2": "abc", "field3": true},
+				compareWith: jsonx.NodeAny{"field1": 456, "field2": "xyz", "field4": 789},
 				differences: newDifferences(),
 				parentPath:  "",
 				eventId:     1,
@@ -163,15 +131,15 @@ func Test_compareNodes(t *testing.T) {
 		{
 			name: "ComplexObject",
 			args: args{
-				base: jsonNode{
+				base: jsonx.NodeAny{
 					"field1": 123,
-					"field2": jsonNode{"subfield1": "abc", "subfield2": 456},
+					"field2": jsonx.NodeAny{"subfield1": "abc", "subfield2": 456},
 					"field3": []int{1, 2, 3},
 					"field4": []string{"a", "b", "c"},
 				},
-				compareWith: jsonNode{
+				compareWith: jsonx.NodeAny{
 					"field1": 789,
-					"field2": jsonNode{"subfield1": "xyz", "subfield2": 789},
+					"field2": jsonx.NodeAny{"subfield1": "xyz", "subfield2": 789},
 					"field3": []int{4, 5, 6},
 					"field4": []string{"a", "b"},
 				},
@@ -188,7 +156,7 @@ func Test_compareNodes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			compareJsonNodes(tt.args.base, tt.args.compareWith, tt.args.differences, tt.args.parentPath, tt.args.eventId,
-				tt.args.createdDate, tt.args.eventName)
+				tt.args.createdDate, tt.args.eventName, "1")
 
 			if !reflect.DeepEqual(tt.args.differences, tt.want) {
 				t.Errorf("Unexpected mergedDifferences:\nGot: %#v\nWant: %#v", tt.args.differences, tt.want)
@@ -217,16 +185,16 @@ func TestGetDifferences(t *testing.T) {
 
 	expectedDifferences := EventFieldChanges{
 		"123->.field1": {
-			{OldRecord: "123", NewRecord: "456", CreatedDate: eventDetails[2].CreatedDate, SourceEventId: 2, SourceEventName: "Event2", OperationType: helper.Modified},
-			{OldRecord: "456", NewRecord: "789", CreatedDate: eventDetails[3].CreatedDate, SourceEventId: 3, SourceEventName: "Event3", OperationType: helper.Modified},
-			{OldRecord: "789", NewRecord: "123", CreatedDate: eventDetails[4].CreatedDate, SourceEventId: 4, SourceEventName: "Event4", OperationType: helper.Modified},
-			{OldRecord: "123", NewRecord: "456", CreatedDate: eventDetails[5].CreatedDate, SourceEventId: 5, SourceEventName: "Event5", OperationType: helper.Modified},
+			{OldRecord: "123", NewRecord: "456", CreatedDate: eventDetails[2].CreatedDate, SourceEventId: 2, SourceEventName: "Event2", OperationType: Modified},
+			{OldRecord: "456", NewRecord: "789", CreatedDate: eventDetails[3].CreatedDate, SourceEventId: 3, SourceEventName: "Event3", OperationType: Modified},
+			{OldRecord: "789", NewRecord: "123", CreatedDate: eventDetails[4].CreatedDate, SourceEventId: 4, SourceEventName: "Event4", OperationType: Modified},
+			{OldRecord: "123", NewRecord: "456", CreatedDate: eventDetails[5].CreatedDate, SourceEventId: 5, SourceEventName: "Event5", OperationType: Modified},
 		},
 		"123->.field2": {
-			{OldRecord: "abc", NewRecord: "def", CreatedDate: eventDetails[2].CreatedDate, SourceEventId: 2, SourceEventName: "Event2", OperationType: helper.Modified},
-			{OldRecord: "def", NewRecord: "ghi", CreatedDate: eventDetails[3].CreatedDate, SourceEventId: 3, SourceEventName: "Event3", OperationType: helper.Modified},
-			{OldRecord: "ghi", NewRecord: "xyz", CreatedDate: eventDetails[4].CreatedDate, SourceEventId: 4, SourceEventName: "Event4", OperationType: helper.Modified},
-			{OldRecord: "xyz", NewRecord: "def", CreatedDate: eventDetails[5].CreatedDate, SourceEventId: 5, SourceEventName: "Event5", OperationType: helper.Modified},
+			{OldRecord: "abc", NewRecord: "def", CreatedDate: eventDetails[2].CreatedDate, SourceEventId: 2, SourceEventName: "Event2", OperationType: Modified},
+			{OldRecord: "def", NewRecord: "ghi", CreatedDate: eventDetails[3].CreatedDate, SourceEventId: 3, SourceEventName: "Event3", OperationType: Modified},
+			{OldRecord: "ghi", NewRecord: "xyz", CreatedDate: eventDetails[4].CreatedDate, SourceEventId: 4, SourceEventName: "Event4", OperationType: Modified},
+			{OldRecord: "xyz", NewRecord: "def", CreatedDate: eventDetails[5].CreatedDate, SourceEventId: 5, SourceEventName: "Event5", OperationType: Modified},
 		},
 	}
 
@@ -295,7 +263,7 @@ func TestCompareCaseEvents(t *testing.T) {
 				CreatedDate:     helper.MustParseTime(layout, "2023-07-25"),
 				SourceEventId:   2,
 				SourceEventName: "Event 2",
-				OperationType:   helper.Modified,
+				OperationType:   Modified,
 			},
 		},
 		"3->.field1": {
@@ -305,7 +273,7 @@ func TestCompareCaseEvents(t *testing.T) {
 				CreatedDate:     helper.MustParseTime(layout, "2023-07-25"),
 				SourceEventId:   3,
 				SourceEventName: "Event 3",
-				OperationType:   helper.Deleted,
+				OperationType:   Deleted,
 			},
 		},
 		"3->.field2": {
@@ -315,7 +283,7 @@ func TestCompareCaseEvents(t *testing.T) {
 				CreatedDate:     helper.MustParseTime(layout, "2023-07-25"),
 				SourceEventId:   3,
 				SourceEventName: "Event 3",
-				OperationType:   helper.Added,
+				OperationType:   Added,
 			},
 		},
 	}

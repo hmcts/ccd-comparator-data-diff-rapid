@@ -1,11 +1,10 @@
 package comparator
 
 import (
-	"ccd-comparator-data-diff-rapid/config"
 	"ccd-comparator-data-diff-rapid/helper"
+	"ccd-comparator-data-diff-rapid/jsonx"
 	"fmt"
-	"sort"
-	"strings"
+	"time"
 )
 
 type Rule interface {
@@ -28,10 +27,9 @@ type FieldChangeCountRule struct {
 	fieldChangeThreshold int
 }
 
-type DynamicFieldChangeRule struct {
+type ArrayFieldChangeRule struct {
 	concurrentEventThresholdMilliseconds int64
 	isScanReportMask                     bool
-	filter                               []config.Paths
 }
 
 func NewStaticFieldChangeRule(concurrentEventThresholdMilliseconds int64, isScanReportMask bool) *StaticFieldChangeRule {
@@ -41,12 +39,10 @@ func NewStaticFieldChangeRule(concurrentEventThresholdMilliseconds int64, isScan
 	}
 }
 
-func NewDynamicFieldChangeRule(concurrentEventThresholdMilliseconds int64, isScanReportMask bool,
-	filter []config.Paths) *DynamicFieldChangeRule {
-	return &DynamicFieldChangeRule{
+func NewArrayFieldChangeRule(concurrentEventThresholdMilliseconds int64, isScanReportMask bool) *ArrayFieldChangeRule {
+	return &ArrayFieldChangeRule{
 		concurrentEventThresholdMilliseconds: concurrentEventThresholdMilliseconds,
 		isScanReportMask:                     isScanReportMask,
-		filter:                               filter,
 	}
 }
 
@@ -66,9 +62,9 @@ func (r StaticFieldChangeRule) CheckForViolation(fieldName string, fieldChanges 
 						timeDifference := currentChange.CreatedDate.Sub(previousChange.CreatedDate).Milliseconds()
 						if checkThreshold(r.concurrentEventThresholdMilliseconds, timeDifference) {
 							preCreatedDate := helper.FormatTimeStamp(previousChange.CreatedDate)
-							message := generateViolationMessage("SV", fieldName, "", previousChange, r.isScanReportMask,
-								preCreatedDate,
-								currentChange)
+							message := generateViolationMessage("SV", fieldName, previousChange.NewRecord,
+								previousChange.SourceEventId, r.isScanReportMask, preCreatedDate,
+								currentChange.NewRecord, currentChange.SourceEventId, currentChange.CreatedDate)
 							v := Violation{
 								sourceEventId:            currentChange.SourceEventId,
 								previousEventCreatedDate: preCreatedDate,
@@ -86,15 +82,15 @@ func (r StaticFieldChangeRule) CheckForViolation(fieldName string, fieldChanges 
 	return violations
 }
 
-func (r FieldChangeCountRule) CheckForViolation(fieldName string, fieldChanges []EventFieldChange) []Violation {
+func (f FieldChangeCountRule) CheckForViolation(fieldName string, fieldChanges []EventFieldChange) []Violation {
 	var violations []Violation
 
 	count := 0
 	for _, difference := range fieldChanges {
 		count++
-		if count > r.fieldChangeThreshold {
+		if count > f.fieldChangeThreshold {
 			message := fmt.Sprintf("JsonNode field change threshold %d exceeded for field %s.",
-				r.fieldChangeThreshold, fieldName)
+				f.fieldChangeThreshold, fieldName)
 
 			v := Violation{
 				sourceEventId: difference.SourceEventId,
@@ -107,44 +103,43 @@ func (r FieldChangeCountRule) CheckForViolation(fieldName string, fieldChanges [
 	return violations
 }
 
-var pathsMap = make(map[string][]string)
-
-func (r DynamicFieldChangeRule) CheckForViolation(path string, fieldChanges []EventFieldChange) []Violation {
+func (a ArrayFieldChangeRule) CheckForViolation(path string, fieldChanges []EventFieldChange) []Violation {
 	var violations []Violation
 
-	if len(pathsMap) == 0 {
-		initializePathsMap(r.filter)
-	}
-
-	genericFields := pathsMap["*"]
-
-	fields, ok := pathsMap[path]
-	if !ok && len(genericFields) == 0 {
-		return violations
-	}
-
-	fields = append(fields, genericFields...)
-
 	for currentIndex, currentChange := range fieldChanges {
-		if currentChange.OperationType != NoChange {
+		if currentChange.OperationType.IsArrayOperation() {
+			var currentArray []jsonx.Change
+			jsonx.MustUnmarshal([]byte(currentChange.NewRecord), &currentArray)
+
 			for previousIndex := 0; previousIndex < currentIndex; previousIndex++ {
 				previousChange := fieldChanges[previousIndex]
-				if previousChange.OperationType != NoChange {
-					for _, field := range fields {
-						if compareTargetFieldStrings(currentChange.NewRecord, previousChange.OldRecord, field) {
-							timeDifference := currentChange.CreatedDate.Sub(previousChange.CreatedDate).Milliseconds()
-							if checkThreshold(r.concurrentEventThresholdMilliseconds, timeDifference) {
-								preCreatedDate := helper.FormatTimeStamp(previousChange.CreatedDate)
-								message := generateViolationMessage("DF", path, field, previousChange,
-									r.isScanReportMask, preCreatedDate,
-									currentChange)
-								v := Violation{
-									sourceEventId:            currentChange.SourceEventId,
-									previousEventCreatedDate: preCreatedDate,
-									previousEventUserId:      previousChange.UserId,
-									message:                  message,
+				if previousChange.OperationType.IsArrayOperation() {
+					var previousArray []jsonx.Change
+					jsonx.MustUnmarshal([]byte(previousChange.NewRecord), &previousArray)
+
+					for _, currentItem := range currentArray {
+						for _, previousItem := range previousArray {
+							if isCrossCheckViolation(currentItem, previousItem) {
+								timeDifference := currentChange.CreatedDate.Sub(previousChange.CreatedDate).Milliseconds()
+								if checkThreshold(a.concurrentEventThresholdMilliseconds, timeDifference) {
+									preCreatedDate := helper.FormatTimeStamp(previousChange.CreatedDate)
+									message := fmt.Sprintf("%s:Field '%s':'%s' %s in event id %d on %s, "+
+										"but '%s' %s in event id %d on %s",
+										"AF", path, processInputValue(previousItem.Value,
+											a.isScanReportMask), previousItem.ChangeType(),
+										previousChange.SourceEventId, preCreatedDate,
+										processInputValue(currentItem.Value, a.isScanReportMask),
+										currentItem.ChangeType(),
+										currentChange.SourceEventId, helper.FormatTimeStamp(currentChange.CreatedDate))
+
+									v := Violation{
+										sourceEventId:            currentChange.SourceEventId,
+										previousEventCreatedDate: preCreatedDate,
+										previousEventUserId:      previousChange.UserId,
+										message:                  message,
+									}
+									violations = append(violations, v)
 								}
-								violations = append(violations, v)
 							}
 						}
 					}
@@ -156,20 +151,19 @@ func (r DynamicFieldChangeRule) CheckForViolation(path string, fieldChanges []Ev
 	return violations
 }
 
-func initializePathsMap(paths []config.Paths) {
-	for _, path := range paths {
-		pathsMap[path.Path] = path.Fields
-	}
+func isCrossCheckViolation(current jsonx.Change, previous jsonx.Change) bool {
+	return current.Compare(previous) && current.HasCrossMatch(previous)
 }
 
-func generateViolationMessage(code, path string, field string, previousChange EventFieldChange,
-	isScanReportMask bool, preCreatedDate string, currentChange EventFieldChange) string {
+func generateViolationMessage(code, path, previousChangeRecord string, previousChangeEventId int64,
+	isScanReportMask bool, preCreatedDate string, currentChangeRecord string, currentChangeEventId int64,
+	currentChangeDate time.Time) string {
 	return fmt.Sprintf("%s:Field '%s' changed to '%s' in event id %d on %s, "+
 		"but reverted back to the previous value '%s' in event id %d on %s",
-		code, path+"."+field, processInputValue(previousChange.NewRecord, isScanReportMask),
-		previousChange.SourceEventId, preCreatedDate,
-		processInputValue(currentChange.NewRecord, isScanReportMask), currentChange.SourceEventId,
-		helper.FormatTimeStamp(currentChange.CreatedDate))
+		code, path, processInputValue(previousChangeRecord, isScanReportMask),
+		previousChangeEventId, preCreatedDate,
+		processInputValue(currentChangeRecord, isScanReportMask), currentChangeEventId,
+		helper.FormatTimeStamp(currentChangeDate))
 }
 
 func processInputValue(input string, isScanReportMask bool) string {
@@ -177,7 +171,7 @@ func processInputValue(input string, isScanReportMask bool) string {
 		return "***"
 	}
 
-	maxLength := 25
+	maxLength := 250
 	if len(input) > maxLength {
 		return input[:maxLength]
 	}
@@ -186,57 +180,4 @@ func processInputValue(input string, isScanReportMask bool) string {
 
 func checkThreshold(thresholdMilliseconds, timeDifference int64) bool {
 	return thresholdMilliseconds == -1 || timeDifference <= thresholdMilliseconds
-}
-func compareTargetFieldStrings(currentNewRecord, previousOldRecord, fieldName string) bool {
-	var currentData, previousData interface{}
-	helper.MustUnmarshal([]byte(currentNewRecord), &currentData)
-	if currentDataSlice, ok := currentData.([]interface{}); ok {
-		helper.MustUnmarshal([]byte(previousOldRecord), &previousData)
-		if previousDataSlice, ok := previousData.([]interface{}); ok {
-			currentFields := extractAndSortFields(currentDataSlice, fieldName)
-			previousFields := extractAndSortFields(previousDataSlice, fieldName)
-			return currentFields == previousFields
-		}
-	}
-	return false
-}
-
-func extractAndSortFields(jsonArray []interface{}, fieldName string) string {
-	var links []string
-
-	for _, item := range jsonArray {
-		if obj, ok := item.(map[string]interface{}); ok {
-			link := extractLink(obj, fieldName)
-			if link != "" {
-				links = append(links, link)
-			}
-		}
-	}
-
-	sort.Strings(links)
-
-	return strings.Join(links, "_")
-}
-
-func extractLink(obj map[string]interface{}, fieldName string) string {
-	if fieldValue := findFieldValue(obj, fieldName); fieldValue != nil {
-		if link, ok := fieldValue.(string); ok {
-			return link
-		}
-	}
-	return ""
-}
-
-func findFieldValue(item map[string]interface{}, fieldName string) interface{} {
-	for key, value := range item {
-		if key == fieldName {
-			return value
-		}
-		if nestedItem, ok := value.(map[string]interface{}); ok {
-			if fieldValue := findFieldValue(nestedItem, fieldName); fieldValue != nil {
-				return fieldValue
-			}
-		}
-	}
-	return nil
 }

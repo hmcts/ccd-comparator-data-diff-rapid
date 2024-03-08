@@ -15,10 +15,10 @@ func setUp() {
 			SearchWindow: 1,
 		},
 		Rule: config.Rule{
-			Active: "samevalueafterchange,fieldchangecount",
+			Active: "staticfieldchange,arrayfieldchange",
 		},
 		Worker: config.Worker{
-			Pool: 5,
+			Pool: 1,
 		},
 		Scan: config.Scan{
 			Concurrent: struct {
@@ -41,11 +41,14 @@ func setUp() {
 				Enabled            bool
 				MaskValue          bool
 				IncludeEmptyChange bool
+				IncludeNoChange    bool
 			}{
 				Enabled:            true,
 				MaskValue:          false,
 				IncludeEmptyChange: true,
+				IncludeNoChange:    false,
 			},
+			BatchSize: defaultBatchSize,
 		},
 	}
 }

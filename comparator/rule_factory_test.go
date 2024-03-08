@@ -12,7 +12,7 @@ func init() {
 }
 
 func TestRuleFactory_GetEnabledRuleList(t *testing.T) {
-	appConfigs.Active = "samevalueafterchange,fieldchangecount,unknownrule"
+	appConfigs.Active = "staticfieldchange,fieldchangecount,unknownrule"
 	factory := NewRuleFactory(appConfigs)
 	enabledRuleList := factory.GetEnabledRuleList()
 
@@ -30,7 +30,7 @@ func TestRuleFactory_GetEnabledRuleList(t *testing.T) {
 }
 
 func TestRuleFactory_GetSingleRule(t *testing.T) {
-	appConfigs.Active = "samevalueafterchange"
+	appConfigs.Active = "staticfieldchange"
 	factory := NewRuleFactory(appConfigs)
 	enabledRuleList := factory.GetEnabledRuleList()
 
@@ -51,7 +51,7 @@ func TestRuleFactory_GetSingleRule(t *testing.T) {
 }
 
 func TestRuleFactory_CreateEnabledRuleList_UnknownRuleType(t *testing.T) {
-	appConfigs.Active = "samevalueafterchange, fieldchangecount, unknownruletype"
+	appConfigs.Active = "staticfieldchange, fieldchangecount, unknownruletype"
 	factory := NewRuleFactory(appConfigs)
 	enabledRuleList := factory.GetEnabledRuleList()
 

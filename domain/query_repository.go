@@ -3,6 +3,7 @@ package domain
 import (
 	"ccd-comparator-data-diff-rapid/internal/store"
 	"github.com/pkg/errors"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -36,16 +37,29 @@ func NewQueryRepository(db store.DB) QueryRepository {
 
 func (r queryRepository) findCasesByEventsInImpactPeriod(comparison Comparison) ([]string, error) {
 	var caseIDs []string
-	err := r.db.Select(&caseIDs, `SELECT cd.id FROM case_data cd
-								INNER JOIN case_event ce ON cd.id = ce.case_data_id
-								WHERE cd.jurisdiction = $1
-									AND cd.case_type_id = $2
-									AND ce.created_date >= $3
-									AND ce.created_date <= $4 
-								GROUP BY cd.id 
-								HAVING 	COUNT(ce.id) > 1
-								ORDER BY cd.id
-			`, comparison.Jurisdiction, comparison.CaseTypeId, comparison.StartTime, comparison.SearchPeriodEndTime)
+	var query string
+	var args []interface{}
+
+	query = `SELECT cd.id FROM case_data cd
+                    INNER JOIN case_event ce ON cd.id = ce.case_data_id
+                    WHERE cd.jurisdiction = $1`
+
+	args = append(args, comparison.Jurisdiction)
+
+	if comparison.CaseTypeId != "" {
+		query += " AND cd.case_type_id = $" + strconv.Itoa(len(args)+1)
+		args = append(args, comparison.CaseTypeId)
+	}
+
+	query += ` AND ce.created_date >= $` + strconv.Itoa(len(args)+1) + `
+                        AND ce.created_date <= $` + strconv.Itoa(len(args)+2) + `
+                    GROUP BY cd.id 
+                    HAVING COUNT(ce.id) > 1
+                    ORDER BY cd.id`
+
+	args = append(args, comparison.StartTime, comparison.SearchPeriodEndTime)
+
+	err := r.db.Select(&caseIDs, query, args...)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "error while retrieving caseIDs in findCasesByJurisdictionInImpactPeriod()")

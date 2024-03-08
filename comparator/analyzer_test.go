@@ -20,7 +20,7 @@ func TestEventDifferencesData_ProcessEventDiff(t *testing.T) {
 			CreatedDate:     timeNow,
 			SourceEventId:   1,
 			SourceEventName: "event1",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 		{
 			OldRecord:       "new_record1",
@@ -28,7 +28,7 @@ func TestEventDifferencesData_ProcessEventDiff(t *testing.T) {
 			CreatedDate:     timeNow,
 			SourceEventId:   1,
 			SourceEventName: "event1",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 	}
 	fieldDifferences2 := []EventFieldChange{
@@ -38,7 +38,7 @@ func TestEventDifferencesData_ProcessEventDiff(t *testing.T) {
 			CreatedDate:     timeNow,
 			SourceEventId:   2,
 			SourceEventName: "event2",
-			OperationType:   helper.Modified,
+			OperationType:   Modified,
 		},
 	}
 
@@ -58,12 +58,14 @@ func TestEventDifferencesData_ProcessEventDiff(t *testing.T) {
 		t.Errorf("Expected size : %d, but got: %d", expectedSize, analyzeResult.Size())
 	}
 
-	expectedResultMessage1 := helper.FormatTimeStamp(timeNow) + "->field field1 changed in event id 1 with the value new_record1 on " + helper.FormatTimeStamp(timeNow) + ". " +
-		"The field field1 was updated back to old value old_record1 in event id 1 on " + helper.FormatTimeStamp(timeNow) + "\nJsonNode field change " +
-		"threshold 0 exceeded for field field1."
-	if expectedResultMessage1 != analyzeResult.Get("combined_reference_1->field1", 1) {
+	expectedResultMessage1 := "SV:Field 'field1' changed to 'new_record1' in event id 1 on " + helper.
+		FormatTimeStamp(timeNow) + ", " +
+		"but reverted back to the previous value 'old_record1' in event id 1 on " + helper.FormatTimeStamp(timeNow) +
+		"\nJsonNode field change threshold 0 exceeded for field field1." +
+		"\nJsonNode field change threshold 0 exceeded for field field1."
+	if expectedResultMessage1 != analyzeResult.Get("combined_reference_1->field1", 1).message {
 		t.Errorf("Incorrect result message. Expected message: %s, but got: %s", expectedResultMessage1,
-			analyzeResult.Get("combined_reference_1->field1", 1))
+			analyzeResult.Get("combined_reference_1->field1", 1).message)
 	}
 }
 
@@ -71,12 +73,22 @@ func TestEventDifferencesData_AppendMessages(t *testing.T) {
 	existingMessage := "Existing Message"
 	newMessage := "New Message"
 
-	pair := &Either[int64, string]{Left: 123, Right: newMessage}
-	result := appendMessages("", pair.Right)
+	v1 := Violation{
+		sourceEventId:            123,
+		previousEventCreatedDate: "",
+		previousEventUserId:      "",
+		message:                  newMessage,
+	}
+	v2 := Violation{
+		sourceEventId:            123,
+		previousEventCreatedDate: "",
+		previousEventUserId:      "",
+		message:                  newMessage,
+	}
+	result := appendMessages("", v1.message)
 	assert.Equal(t, newMessage, result, "Appended message should be equal to the new message")
 
 	// Test when existingMessage is not empty
-	pair = &Either[int64, string]{Left: 123, Right: newMessage}
-	result = appendMessages(existingMessage, pair.Right)
+	result = appendMessages(existingMessage, v2.message)
 	assert.Equal(t, existingMessage+"\n"+newMessage, result, "Appended message should have both existing and new messages")
 }

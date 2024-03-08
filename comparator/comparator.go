@@ -1,18 +1,24 @@
 package comparator
 
 import (
-	"ccd-comparator-data-diff-rapid/helper"
+	"ccd-comparator-data-diff-rapid/jsonx"
 	"encoding/json"
 	"fmt"
 	"github.com/rs/zerolog/log"
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
 type OperationType string
+
+// IsArrayOperation checks if the OperationType represents an array operation.
+func (o OperationType) IsArrayOperation() bool {
+	return strings.HasPrefix(string(o), "ARRAY_")
+}
 
 const (
 	Added         OperationType = "ADDED"
@@ -84,11 +90,9 @@ func CompareEventsByCaseReference(transactionId string, caseEvents CasesWithEven
 	return mergedDifferences.GetAll()
 }
 
-type jsonNode map[string]interface{}
-
 func detectEventModifications(caseReference int64, eventDetails map[int64]EventDetails) EventFieldChanges {
 	differences := newDifferences()
-	var base jsonNode
+	var base jsonx.NodeAny
 
 	keys := make([]int64, 0, len(eventDetails))
 	for eventId := range eventDetails {
@@ -104,12 +108,12 @@ func detectEventModifications(caseReference int64, eventDetails map[int64]EventD
 		eventDetail := eventDetails[eventId]
 		if base == nil {
 			// Unmarshal the base data from the first event
-			helper.MustUnmarshal([]byte(eventDetail.Data), &base)
+			jsonx.MustUnmarshal([]byte(eventDetail.Data), &base)
 			continue
 		}
 
-		var compareWith jsonNode
-		helper.MustUnmarshal([]byte(eventDetail.Data), &compareWith)
+		var compareWith jsonx.NodeAny
+		jsonx.MustUnmarshal([]byte(eventDetail.Data), &compareWith)
 		compareJsonNodes(base, compareWith, differences, strconv.FormatInt(caseReference, 10)+"->", eventId,
 			eventDetail.CreatedDate, eventDetail.Name, eventDetail.UserId)
 		base = compareWith
@@ -118,12 +122,11 @@ func detectEventModifications(caseReference int64, eventDetails map[int64]EventD
 	return differences.differencesByPath
 }
 
-func compareJsonNodes(base, compareWith interface{}, differences *differences, parentPath string, eventId int64,
+func compareJsonNodes(base, compareWith any, differences *differences, parentPath string, eventId int64,
 	createdDate time.Time, eventName string, userId string) {
 	baseNode, isBaseObject := convertToMap(base)
 	compareNode, isCompareObject := convertToMap(compareWith)
-
-	if isBaseObject && isCompareObject {
+	if isBaseObject && isCompareObject && !baseNode.IsEmpty() && !compareNode.IsEmpty() {
 		for key, value := range baseNode {
 			currentPath := fmt.Sprintf("%s.%s", parentPath, key)
 			if compareValue, ok := compareNode[key]; ok {
@@ -143,16 +146,23 @@ func compareJsonNodes(base, compareWith interface{}, differences *differences, p
 	} else {
 		baseArray, isBaseArray := convertToSlice(base)
 		compareArray, isCompareArray := convertToSlice(compareWith)
-		if isBaseArray && isCompareArray {
+		var changeType OperationType
+		if isBaseArray && isCompareArray && !baseArray.IsEmpty() && !compareArray.IsEmpty() {
 			if len(baseArray) > len(compareArray) {
-				differences.recordDifferenceAtPath(parentPath, createDifference(base, compareWith, eventId, createdDate,
-					ArrayShrunk, eventName, userId))
+				changeType = ArrayShrunk
 			} else if len(baseArray) < len(compareArray) {
-				differences.recordDifferenceAtPath(parentPath, createDifference(base, compareWith, eventId, createdDate,
-					ArrayExtended, eventName, userId))
-			} else if !compareArrays(baseArray, compareArray) {
-				differences.recordDifferenceAtPath(parentPath, createDifference(base, compareWith, eventId, createdDate,
-					ArrayModified, eventName, userId))
+				changeType = ArrayExtended
+			} else {
+				changeType = ArrayModified
+			}
+
+			changes := compareArrays(baseArray, compareArray)
+			if !changes.IsEmpty() {
+				for key, items := range changes {
+					itemsJson := jsonx.MustMarshal(items)
+					differences.recordDifferenceAtPath(parentPath+key, createDifference("", string(itemsJson),
+						eventId, createdDate, changeType, eventName, userId))
+				}
 			}
 		} else if !compareWithEqual(base, compareWith) {
 			differences.recordDifferenceAtPath(parentPath, createDifference(base, compareWith, eventId, createdDate,
@@ -164,29 +174,31 @@ func compareJsonNodes(base, compareWith interface{}, differences *differences, p
 	}
 }
 
-func convertToMap(t interface{}) (jsonNode, bool) {
+func convertToMap(t any) (jsonx.NodeAny, bool) {
 	if t == nil {
 		return nil, false
 	}
 
-	switch t.(type) {
-	case map[string]interface{}:
-		return t.(map[string]interface{}), true
-	case jsonNode:
-		return t.(jsonNode), true
-	default:
-		return nil, false
+	if m, ok := t.(map[string]any); ok {
+		return m, true
 	}
+
+	if n, ok := t.(jsonx.NodeAny); ok {
+		return n, true
+	}
+
+	return nil, false
 }
 
-func convertToSlice(v interface{}) ([]interface{}, bool) {
+func convertToSlice(v any) (jsonx.ArrayAny, bool) {
 	if v == nil {
 		return nil, false
 	}
-	var out []interface{}
+
 	rv := reflect.ValueOf(v)
 	switch reflect.TypeOf(v).Kind() {
 	case reflect.Slice:
+		out := make(jsonx.ArrayAny, rv.Len())
 		for i := 0; i < rv.Len(); i++ {
 			out = append(out, rv.Index(i).Interface())
 		}
@@ -196,54 +208,126 @@ func convertToSlice(v interface{}) ([]interface{}, bool) {
 	}
 }
 
-func compareArrays(base, compare []interface{}) bool {
+func compareArrays(base, compare []any) jsonx.NodeChange {
 	// https://pkg.go.dev/encoding/json#Marshal keys are sorted
-	baseMap := make(map[string]interface{})
-	compareMap := make(map[string]interface{})
+	baseMap := printFieldValuesMap(base)
+	compareMap := printFieldValuesMap(compare)
+	result := make(jsonx.NodeChange)
 
-	for _, item := range base {
-		switch item := item.(type) {
-		case map[string]interface{}:
-			delete(item, "id")
-			itemJSON, _ := json.Marshal(item)
-			baseMap[string(itemJSON)] = item
-		default:
-			if strItem, ok := item.(string); ok {
-				baseMap[strItem] = item
+	for key, compareItem := range compareMap {
+		var changes jsonx.ArrayChange
+		baseItem, ok := baseMap[key]
+		if ok {
+			changes = compareArrayObjects(baseItem, compareItem)
+		} else {
+			for _, value := range compareItem {
+				changes = append(changes, jsonx.Change{Value: value, Added: true})
 			}
 		}
-	}
-
-	for _, item := range compare {
-		switch item := item.(type) {
-		case map[string]interface{}:
-			delete(item, "id")
-			itemJSON, _ := json.Marshal(item)
-			compareMap[string(itemJSON)] = item
-		default:
-			if strItem, ok := item.(string); ok {
-				compareMap[strItem] = item
-			}
+		if !changes.IsEmpty() {
+			result[key] = changes
 		}
 	}
 
 	for key, baseItem := range baseMap {
-		compareItem, ok := compareMap[key]
+		var changes jsonx.ArrayChange
+		_, ok := compareMap[key]
 		if !ok {
-			return false
-		} else if !reflect.DeepEqual(baseItem, compareItem) {
-			return false
+			for _, value := range baseItem {
+				changes = append(changes, jsonx.Change{Value: value, Deleted: true})
+			}
+		}
+		if !changes.IsEmpty() {
+			result[key] = changes
 		}
 	}
 
-	for key := range compareMap {
-		_, ok := baseMap[key]
-		if !ok {
-			return false
+	return result
+}
+
+func printFieldValuesMap(data []any) map[string][]string {
+	fieldValuesMap := make(map[string][]string)
+	for _, obj := range data {
+		if objMap, ok := obj.(map[string]any); ok {
+			traverseArrayFields(objMap, "", fieldValuesMap)
+		}
+	}
+	return fieldValuesMap
+}
+
+func traverseArrayFields(data map[string]any, prefix string, fieldValuesMap map[string][]string) {
+	for key, value := range data {
+		path := fmt.Sprintf("%s.%s", prefix, key)
+		if reflect.TypeOf(value).Kind() == reflect.Map {
+			if subMap, ok := value.(map[string]any); ok {
+				traverseArrayFields(subMap, path, fieldValuesMap)
+			}
+		} else if reflect.TypeOf(value).Kind() == reflect.Slice {
+			if subSlice, ok := value.([]any); ok {
+				var subValues []string
+				for _, subValue := range subSlice {
+					if subMap, ok := subValue.(map[string]any); ok {
+						traverseArrayFields(subMap, path, fieldValuesMap)
+					} else {
+						subValues = append(subValues, fmt.Sprintf("%v", subValue))
+					}
+				}
+				if len(subValues) > 0 {
+					valueStr := strings.Join(subValues, ", ")
+					fieldValuesMap[path] = append(fieldValuesMap[path], valueStr)
+				}
+			}
+		} else {
+			valueStr := fmt.Sprintf("%v", value)
+			fieldValuesMap[path] = append(fieldValuesMap[path], valueStr)
+		}
+	}
+}
+
+func compareArrayObjects(baseArray, compareArray []string) jsonx.ArrayChange {
+	baseCounts := sliceToMap(baseArray)
+	compareCounts := sliceToMap(compareArray)
+
+	// Find deleted elements
+	deleted := make(jsonx.ArrayChange, 0)
+	for k, baseCount := range baseCounts {
+		compareCount, found := compareCounts[k]
+		if found {
+			diff := baseCount - compareCount
+			if diff > 0 {
+				deleted = append(deleted, jsonx.Change{Value: k, Deleted: true})
+			}
+		} else {
+			deleted = append(deleted, jsonx.Change{Value: k, Deleted: true})
 		}
 	}
 
-	return true
+	// Find added elements
+	added := make(jsonx.ArrayChange, 0)
+	for k, compareCount := range compareCounts {
+		baseCount, found := baseCounts[k]
+		if found {
+			diff := compareCount - baseCount
+			if diff > 0 {
+				added = append(added, jsonx.Change{Value: k, Added: true})
+			}
+		} else {
+			added = append(added, jsonx.Change{Value: k, Added: true})
+		}
+	}
+
+	// Combine deleted and added elements
+	changes := append(deleted, added...)
+
+	return changes
+}
+
+func sliceToMap(slice []string) map[string]int {
+	counts := make(map[string]int)
+	for _, v := range slice {
+		counts[v]++
+	}
+	return counts
 }
 
 func (d *differences) recordDifferenceAtPath(path string, difference EventFieldChange) {
@@ -266,7 +350,7 @@ func isNotEmpty(oldValue, newValue string) bool {
 		(newValue != "" && newValue != "null" && newValue != "{}" && newValue != "[]")
 }
 
-func compareWithEqual(base, compareWith interface{}) bool {
+func compareWithEqual(base, compareWith any) bool {
 	baseBytes, err := json.Marshal(base)
 	if err != nil {
 		return false
@@ -279,7 +363,7 @@ func compareWithEqual(base, compareWith interface{}) bool {
 	return string(baseBytes) == string(compareBytes)
 }
 
-func createDifference(oldRecord, newRecord interface{}, eventId int64, createdDate time.Time,
+func createDifference(oldRecord, newRecord any, eventId int64, createdDate time.Time,
 	operationType OperationType, eventName string, userId string) EventFieldChange {
 
 	oldRecordValue, oBase := oldRecord.(string)
