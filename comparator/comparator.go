@@ -37,6 +37,7 @@ type EventDetails struct {
 	Data        string
 	CaseDataId  int64
 	UserId      string
+	CaseTypeId  string
 }
 
 type EventFieldChange struct {
@@ -47,6 +48,19 @@ type EventFieldChange struct {
 	SourceEventName string
 	OperationType   OperationType
 	UserId          string
+	CaseTypeId      string
+}
+
+type comparisonParams struct {
+	base        any
+	compareWith any
+	differences *differences
+	parentPath  string
+	eventId     int64
+	createdDate time.Time
+	eventName   string
+	userId      string
+	caseTypeId  string
 }
 
 type CasesWithEventDetails map[int64]map[int64]EventDetails
@@ -91,7 +105,7 @@ func CompareEventsByCaseReference(transactionId string, caseEvents CasesWithEven
 }
 
 func detectEventModifications(caseReference int64, eventDetails map[int64]EventDetails) EventFieldChanges {
-	differences := newDifferences()
+	fieldDifferences := newDifferences()
 	var base jsonx.NodeAny
 
 	keys := make([]int64, 0, len(eventDetails))
@@ -114,38 +128,59 @@ func detectEventModifications(caseReference int64, eventDetails map[int64]EventD
 
 		var compareWith jsonx.NodeAny
 		jsonx.MustUnmarshal([]byte(eventDetail.Data), &compareWith)
-		compareJsonNodes(base, compareWith, differences, strconv.FormatInt(caseReference, 10)+"->", eventId,
-			eventDetail.CreatedDate, eventDetail.Name, eventDetail.UserId)
+		params := comparisonParams{
+			base:        base,
+			compareWith: compareWith,
+			differences: fieldDifferences,
+			parentPath:  strconv.FormatInt(caseReference, 10) + "->",
+			eventId:     eventId,
+			createdDate: eventDetail.CreatedDate,
+			eventName:   eventDetail.Name,
+			userId:      eventDetail.UserId,
+			caseTypeId:  eventDetail.CaseTypeId,
+		}
+
+		compareJsonNodes(params)
 		base = compareWith
 	}
 
-	return differences.differencesByPath
+	return fieldDifferences.differencesByPath
 }
 
-func compareJsonNodes(base, compareWith any, differences *differences, parentPath string, eventId int64,
-	createdDate time.Time, eventName string, userId string) {
-	baseNode, isBaseObject := convertToMap(base)
-	compareNode, isCompareObject := convertToMap(compareWith)
+func compareJsonNodes(params comparisonParams) {
+	baseNode, isBaseObject := convertToMap(params.base)
+	compareNode, isCompareObject := convertToMap(params.compareWith)
 	if isBaseObject && isCompareObject && !baseNode.IsEmpty() && !compareNode.IsEmpty() {
 		for key, value := range baseNode {
-			currentPath := fmt.Sprintf("%s.%s", parentPath, key)
+			currentPath := fmt.Sprintf("%s.%s", params.parentPath, key)
 			if compareValue, ok := compareNode[key]; ok {
-				compareJsonNodes(value, compareValue, differences, currentPath, eventId, createdDate, eventName, userId)
+				innerParams := comparisonParams{
+					base:        value,
+					compareWith: compareValue,
+					differences: params.differences,
+					parentPath:  currentPath,
+					eventId:     params.eventId,
+					createdDate: params.createdDate,
+					eventName:   params.eventName,
+					userId:      params.userId,
+					caseTypeId:  params.caseTypeId,
+				}
+				compareJsonNodes(innerParams)
 			} else {
-				differences.recordDifferenceAtPath(currentPath, createDifference(value, "", eventId,
-					createdDate, Deleted, eventName, userId))
+				params.differences.recordDifferenceAtPath(currentPath, createDifference(value, "", params.eventId,
+					params.createdDate, Deleted, params.eventName, params.userId, params.caseTypeId))
 			}
 		}
 		for key, value := range compareNode {
-			currentPath := fmt.Sprintf("%s.%s", parentPath, key)
+			currentPath := fmt.Sprintf("%s.%s", params.parentPath, key)
 			if _, ok := baseNode[key]; !ok {
-				differences.recordDifferenceAtPath(currentPath, createDifference("", value, eventId,
-					createdDate, Added, eventName, userId))
+				params.differences.recordDifferenceAtPath(currentPath, createDifference("", value, params.eventId,
+					params.createdDate, Added, params.eventName, params.userId, params.caseTypeId))
 			}
 		}
 	} else {
-		baseArray, isBaseArray := convertToSlice(base)
-		compareArray, isCompareArray := convertToSlice(compareWith)
+		baseArray, isBaseArray := convertToSlice(params.base)
+		compareArray, isCompareArray := convertToSlice(params.compareWith)
 		var changeType OperationType
 		if isBaseArray && isCompareArray && !baseArray.IsEmpty() && !compareArray.IsEmpty() {
 			if len(baseArray) > len(compareArray) {
@@ -160,16 +195,19 @@ func compareJsonNodes(base, compareWith any, differences *differences, parentPat
 			if !changes.IsEmpty() {
 				for key, items := range changes {
 					itemsJson := jsonx.MustMarshal(items)
-					differences.recordDifferenceAtPath(parentPath+key, createDifference("", string(itemsJson),
-						eventId, createdDate, changeType, eventName, userId))
+					params.differences.recordDifferenceAtPath(params.parentPath+key, createDifference("",
+						string(itemsJson), params.eventId, params.createdDate, changeType, params.eventName,
+						params.userId, params.caseTypeId))
 				}
 			}
-		} else if !compareWithEqual(base, compareWith) {
-			differences.recordDifferenceAtPath(parentPath, createDifference(base, compareWith, eventId, createdDate,
-				Modified, eventName, userId))
+		} else if !compareWithEqual(params.base, params.compareWith) {
+			params.differences.recordDifferenceAtPath(params.parentPath, createDifference(params.base,
+				params.compareWith, params.eventId, params.createdDate, Modified, params.eventName, params.userId,
+				params.caseTypeId))
 		} else {
-			differences.recordDifferenceAtPath(parentPath, createDifference(base, compareWith, eventId, createdDate,
-				NoChange, eventName, userId))
+			params.differences.recordDifferenceAtPath(params.parentPath, createDifference(params.base,
+				params.compareWith, params.eventId, params.createdDate,
+				NoChange, params.eventName, params.userId, params.caseTypeId))
 		}
 	}
 }
@@ -363,8 +401,8 @@ func compareWithEqual(base, compareWith any) bool {
 	return string(baseBytes) == string(compareBytes)
 }
 
-func createDifference(oldRecord, newRecord any, eventId int64, createdDate time.Time,
-	operationType OperationType, eventName string, userId string) EventFieldChange {
+func createDifference(oldRecord, newRecord any, eventId int64, createdDate time.Time, operationType OperationType,
+	eventName, userId, caseTypeId string) EventFieldChange {
 
 	oldRecordValue, oBase := oldRecord.(string)
 	if !oBase {
@@ -386,5 +424,6 @@ func createDifference(oldRecord, newRecord any, eventId int64, createdDate time.
 		CreatedDate:     createdDate,
 		OperationType:   operationType,
 		UserId:          userId,
+		CaseTypeId:      caseTypeId,
 	}
 }

@@ -155,8 +155,7 @@ func Test_compareNodes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			compareJsonNodes(tt.args.base, tt.args.compareWith, tt.args.differences, tt.args.parentPath, tt.args.eventId,
-				tt.args.createdDate, tt.args.eventName, "1")
+			compareJsonNodes(tt.args.base, tt.args.parentPath, tt.args.eventId, tt.args.createdDate, tt.args.eventName, "1")
 
 			if !reflect.DeepEqual(tt.args.differences, tt.want) {
 				t.Errorf("Unexpected mergedDifferences:\nGot: %#v\nWant: %#v", tt.args.differences, tt.want)

@@ -178,7 +178,7 @@ func (s Service) compareAndSaveEvents(workerId int, wg *sync.WaitGroup, workers 
 			continue
 		}
 
-		if err := s.saveReport(w.transactionId, analyzeResult, eventFieldChanges, w.comparison.CaseTypeId); err != nil {
+		if err := s.saveReport(w.transactionId, analyzeResult, eventFieldChanges); err != nil {
 			handleError(resultChan, w.transactionId, err, "saving the report")
 			continue
 		}
@@ -222,11 +222,11 @@ func sendError(resultChan chan<- comparisonResult, transactionId string, error e
 }
 
 func (s Service) saveReport(transactionId string, analyzeResult *comparator.AnalyzeResult,
-	eventDifferences comparator.EventFieldChanges, caseTypeId string) error {
+	eventDifferences comparator.EventFieldChanges) error {
 
 	if analyzeResult.IsNotEmpty() || s.configuration.Report.IncludeEmptyChange {
 		eventDataReportEntities, err := comparator.PrepareReportEntities(eventDifferences, analyzeResult,
-			s.configuration, caseTypeId)
+			s.configuration)
 		if err != nil {
 			return errors.Wrap(err, "failed to process PrepareReportEntities")
 		}
@@ -267,6 +267,7 @@ func getCasesWithEventDetails(cases []CaseDataEntity) comparator.CasesWithEventD
 			Data:        caseData.EventData,
 			CaseDataId:  caseData.CaseDataId,
 			UserId:      caseData.UserId,
+			CaseTypeId:  caseData.CaseTypeId,
 		}
 	}
 
