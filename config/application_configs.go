@@ -18,14 +18,15 @@ type Configurations struct {
 }
 
 type Database struct {
-	Username  string
-	Password  string
-	Host      string
-	Port      int
-	Name      string
-	Driver    string
-	SslMode   string
-	BatchSize int
+	Username       string
+	Password       string
+	Host           string
+	Port           int
+	Name           string
+	Driver         string
+	SslMode        string
+	BatchSize      int
+	EventDataTable string
 }
 
 type Period struct {

@@ -4,6 +4,7 @@ import (
 	"ccd-comparator-data-diff-rapid/comparator"
 	"ccd-comparator-data-diff-rapid/internal/store"
 	"database/sql"
+	"fmt"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
@@ -11,7 +12,8 @@ import (
 const defaultBatchSize = 100
 
 type SaveRepository interface {
-	saveAllEventDataReport(batchSize int, eventDataReportEntities []comparator.EventDataReportEntity) error
+	saveAllEventDataReport(batchSize int, eventDataTable string, eventDataReportEntities []comparator.
+		EventDataReportEntity) error
 }
 
 type saveRepository struct {
@@ -22,7 +24,8 @@ func NewSaveRepository(db store.DB) SaveRepository {
 	return &saveRepository{db: db}
 }
 
-func (s saveRepository) saveAllEventDataReport(batchSize int, eventDataReportEntities []comparator.EventDataReportEntity) error {
+func (s saveRepository) saveAllEventDataReport(batchSize int, eventDataTable string,
+	eventDataReportEntities []comparator.EventDataReportEntity) error {
 	totalEntities := len(eventDataReportEntities)
 	if batchSize == 0 {
 		batchSize = defaultBatchSize
@@ -36,13 +39,14 @@ func (s saveRepository) saveAllEventDataReport(batchSize int, eventDataReportEnt
 
 		batch := eventDataReportEntities[i:end]
 
-		res, err := tx.NamedExec(`INSERT INTO event_data_report_v5 (
+		res, err := tx.NamedExec(
+			fmt.Sprintf(`INSERT INTO %s (
 			event_id, event_name, case_type_id, reference, field_name, change_type,
 			old_record, new_record, previous_event_created_date, event_created_date,
 			analyze_result_detail, potential_risk, previous_event_user_id, event_user_id, event_delta)
 		VALUES (:event_id, :event_name, :case_type_id, :reference, :field_name, :change_type, :old_record, :new_record,
 			:previous_event_created_date, :event_created_date, :analyze_result, :potential_risk, 
-		        :previous_event_user_id, :event_user_id, :event_delta)`, batch)
+		        :previous_event_user_id, :event_user_id, :event_delta)`, eventDataTable), batch)
 
 		if err != nil {
 			_ = tx.Rollback()

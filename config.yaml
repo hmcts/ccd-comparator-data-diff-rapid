@@ -7,14 +7,14 @@ database:
   driver: postgres
   sslmode: require
   batchSize: 100
+  eventDataTable: event_data_report
 period:
   startTime: "2022-01-01T07:00:00.000" # considered GMT
   endTime:   "2022-01-31T23:20:59.000"
-  searchWindow: 1 # Search results for days
 worker:
   pool: 30 # Number of worker threads in the pool
 rule:
-  active: "samevalueafterchange,fieldchangecount"  # Active rules for event comparison
+  active: "staticfieldchange,arrayfieldchange,fieldchangecount"  # Active rules for event comparison
 scan:
   jurisdiction: BEFTA_JURISDICTION_3  # Jurisdiction for scanning
   caseType: BEFTA_CASETYPE_3_1 # Case type for scanning
