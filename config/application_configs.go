@@ -55,18 +55,13 @@ type Scan struct {
 	FieldChange struct {
 		Threshold int
 	}
-	Filter []Paths
+
 	Report struct {
 		Enabled            bool
 		MaskValue          bool
 		IncludeEmptyChange bool
 		IncludeNoChange    bool
 	}
-}
-
-type Paths struct {
-	Path   string
-	Fields []string
 }
 
 type Log struct {
