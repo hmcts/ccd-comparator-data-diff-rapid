@@ -29,7 +29,7 @@ type EventDataReportEntity struct {
 }
 
 func PrepareReportEntities(eventDifferences map[string][]EventFieldChange, analyzeResult *AnalyzeResult,
-	configurations *config.Configurations) ([]EventDataReportEntity, error) {
+	configurations *config.Configurations, caseTypeId string) ([]EventDataReportEntity, error) {
 
 	if analyzeResult.IsEmpty() && !configurations.Report.IncludeEmptyChange {
 		return nil, nil
@@ -70,7 +70,7 @@ func PrepareReportEntities(eventDifferences map[string][]EventFieldChange, analy
 					}
 					entity.EventID = eventFieldDiff.SourceEventId
 					entity.EventName = eventFieldDiff.SourceEventName
-					entity.CaseTypeID = configurations.CaseType
+					entity.CaseTypeID = caseTypeId
 					entity.Reference = caseReference
 					entity.FieldName = fieldName
 					entity.ChangeType = string(eventFieldDiff.OperationType)

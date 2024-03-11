@@ -120,6 +120,7 @@ func (s Service) processComparisonWork(wg *sync.WaitGroup, comparison Comparison
 		workers <- comparisonWork{
 			transactionId: transactionId,
 			caseIds:       batch,
+			comparison:    comparison,
 		}
 	}
 }
@@ -177,7 +178,7 @@ func (s Service) compareAndSaveEvents(workerId int, wg *sync.WaitGroup, workers 
 			continue
 		}
 
-		if err := s.saveReport(w.transactionId, analyzeResult, eventFieldChanges); err != nil {
+		if err := s.saveReport(w.transactionId, analyzeResult, eventFieldChanges, w.comparison.CaseTypeId); err != nil {
 			handleError(resultChan, w.transactionId, err, "saving the report")
 			continue
 		}
@@ -221,10 +222,11 @@ func sendError(resultChan chan<- comparisonResult, transactionId string, error e
 }
 
 func (s Service) saveReport(transactionId string, analyzeResult *comparator.AnalyzeResult,
-	eventDifferences comparator.EventFieldChanges) error {
+	eventDifferences comparator.EventFieldChanges, caseTypeId string) error {
 
 	if analyzeResult.IsNotEmpty() || s.configuration.Report.IncludeEmptyChange {
-		eventDataReportEntities, err := comparator.PrepareReportEntities(eventDifferences, analyzeResult, s.configuration)
+		eventDataReportEntities, err := comparator.PrepareReportEntities(eventDifferences, analyzeResult,
+			s.configuration, caseTypeId)
 		if err != nil {
 			return errors.Wrap(err, "failed to process PrepareReportEntities")
 		}
@@ -237,7 +239,8 @@ func (s Service) saveReport(transactionId string, analyzeResult *comparator.Anal
 
 		log.Info().Msgf("tid:%s - Saving report data to the database. Total record number: %d", transactionId, numberOfRecord)
 
-		err = s.saveRepo.saveAllEventDataReport(s.configuration.Database.BatchSize, eventDataReportEntities)
+		err = s.saveRepo.saveAllEventDataReport(s.configuration.Database.BatchSize,
+			s.configuration.Database.EventDataTable, eventDataReportEntities)
 		if err != nil {
 			return errors.Wrap(err, "failed to save report data")
 		}
