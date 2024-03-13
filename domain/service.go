@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
+	"strings"
 	"sync"
 	"time"
 )
@@ -82,10 +83,19 @@ func (s Service) processComparisonWork(wg *sync.WaitGroup, comparison Comparison
 	workers := make(chan comparisonWork, numberOfWorker)
 	defer closeWorkers(workers)
 
-	caseIds, err := s.retrieveCaseIdsByEvents(comparison)
-	if err != nil {
-		log.Error().Msgf("Couldn't retrieve caseIds. ERROR: %s", err)
-		return
+	caseIdConfig := strings.TrimSpace(s.configuration.Scan.CaseId)
+
+	var caseIds []string
+
+	if caseIdConfig != "" {
+		caseIds = strings.Split(caseIdConfig, ",")
+	} else {
+		var err error
+		caseIds, err = s.retrieveCaseIdsByEvents(comparison)
+		if err != nil {
+			log.Error().Msgf("Couldn't retrieve caseIds. ERROR: %s", err)
+			return
+		}
 	}
 
 	countOfCaseIds := len(caseIds)
@@ -155,6 +165,11 @@ func (s Service) compareAndSaveEvents(workerId int, wg *sync.WaitGroup, workers 
 			continue
 		}
 
+		if len(cases) > s.configuration.MaxEventProcessCount {
+			dataExceeded := fmt.Sprintf("tid:%s - The threshold for event count (%d) has been exceeded for caseId: %s."+
+				"The process will proceed uninterrupted...", w.transactionId, len(cases), w.caseIds)
+			log.Warn().Msg(dataExceeded)
+		}
 		logParsingCaseData(w.transactionId, w.comparison.Jurisdiction, w.comparison.CaseTypeId, len(cases))
 
 		casesWithEventDetails := getCasesWithEventDetails(cases)
@@ -188,7 +203,7 @@ func (s Service) compareAndSaveEvents(workerId int, wg *sync.WaitGroup, workers 
 }
 
 func logEventComparisonStart(workerId int, w comparisonWork) {
-	log.Info().Msgf("tid:%s -- Event comparison started in worker %d: caseIds: %s",
+	log.Info().Msgf("tid:%s - Event comparison started in worker %d: caseIds: %s",
 		w.transactionId, workerId, w.caseIds)
 }
 

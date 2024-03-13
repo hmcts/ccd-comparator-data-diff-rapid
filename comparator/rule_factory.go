@@ -2,6 +2,7 @@ package comparator
 
 import (
 	"ccd-comparator-data-diff-rapid/config"
+	"ccd-comparator-data-diff-rapid/helper"
 	"github.com/pkg/errors"
 	"strings"
 )
@@ -29,6 +30,8 @@ func (f RuleFactory) createEnabledRuleList(activeAnalyzeRules string) ([]Rule, e
 	enabledRuleTypes := parseActiveAnalyzeRules(activeAnalyzeRules)
 
 	var ruleConfig = f.configuration.Scan
+	var searchStartTime = helper.MustParseTime("", f.configuration.Period.StartTime)
+
 	rules := make([]Rule, 0)
 
 	if enabledRuleTypes[RuleTypeStaticFieldChange] {
@@ -37,7 +40,7 @@ func (f RuleFactory) createEnabledRuleList(activeAnalyzeRules string) ([]Rule, e
 	}
 	if enabledRuleTypes[RuleTypeArrayFieldChange] {
 		rules = append(rules, NewArrayFieldChangeRule(ruleConfig.Concurrent.Event.ThresholdMilliseconds,
-			ruleConfig.Report.MaskValue))
+			ruleConfig.Report.MaskValue, searchStartTime))
 	}
 	if enabledRuleTypes[RuleTypeFieldChangeCount] {
 		rules = append(rules, NewFieldChangeCountRule(ruleConfig.FieldChange.Threshold))

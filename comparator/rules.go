@@ -19,8 +19,8 @@ type Violation struct {
 }
 
 type StaticFieldChangeRule struct {
-	concurrentEventThresholdMilliseconds int64
-	isScanReportMask                     bool
+	concurrentEventTimeLimit int64
+	isScanReportMask         bool
 }
 
 type FieldChangeCountRule struct {
@@ -28,21 +28,24 @@ type FieldChangeCountRule struct {
 }
 
 type ArrayFieldChangeRule struct {
-	concurrentEventThresholdMilliseconds int64
-	isScanReportMask                     bool
+	concurrentEventTimeLimit int64
+	isScanReportMask         bool
+	searchStartTime          time.Time
 }
 
-func NewStaticFieldChangeRule(concurrentEventThresholdMilliseconds int64, isScanReportMask bool) *StaticFieldChangeRule {
+func NewStaticFieldChangeRule(concurrentEventTimeLimit int64, isScanReportMask bool) *StaticFieldChangeRule {
 	return &StaticFieldChangeRule{
-		concurrentEventThresholdMilliseconds: concurrentEventThresholdMilliseconds,
-		isScanReportMask:                     isScanReportMask,
+		concurrentEventTimeLimit: concurrentEventTimeLimit,
+		isScanReportMask:         isScanReportMask,
 	}
 }
 
-func NewArrayFieldChangeRule(concurrentEventThresholdMilliseconds int64, isScanReportMask bool) *ArrayFieldChangeRule {
+func NewArrayFieldChangeRule(concurrentEventTimeLimit int64, isScanReportMask bool,
+	searchStartTime time.Time) *ArrayFieldChangeRule {
 	return &ArrayFieldChangeRule{
-		concurrentEventThresholdMilliseconds: concurrentEventThresholdMilliseconds,
-		isScanReportMask:                     isScanReportMask,
+		concurrentEventTimeLimit: concurrentEventTimeLimit,
+		isScanReportMask:         isScanReportMask,
+		searchStartTime:          searchStartTime,
 	}
 }
 
@@ -60,7 +63,7 @@ func (r StaticFieldChangeRule) CheckForViolation(fieldName string, fieldChanges 
 				if previousChange.OperationType != NoChange {
 					if currentChange.NewRecord == previousChange.OldRecord {
 						timeDifference := currentChange.CreatedDate.Sub(previousChange.CreatedDate).Milliseconds()
-						if checkThreshold(r.concurrentEventThresholdMilliseconds, timeDifference) {
+						if checkThreshold(r.concurrentEventTimeLimit, timeDifference) {
 							preCreatedDate := helper.FormatTimeStamp(previousChange.CreatedDate)
 							message := generateViolationMessage("SV", fieldName, previousChange.NewRecord,
 								previousChange.SourceEventId, r.isScanReportMask, preCreatedDate,
@@ -106,41 +109,48 @@ func (f FieldChangeCountRule) CheckForViolation(fieldName string, fieldChanges [
 func (a ArrayFieldChangeRule) CheckForViolation(path string, fieldChanges []EventFieldChange) []Violation {
 	var violations []Violation
 
-	for currentIndex, currentChange := range fieldChanges {
+	for currentIndex := len(fieldChanges) - 1; currentIndex > 0; currentIndex-- {
+		currentChange := fieldChanges[currentIndex]
+
+		// stop comparing if the change date is older than the search start date
+		if currentChange.CreatedDate.Before(a.searchStartTime) {
+			break
+		}
+
 		if currentChange.OperationType.IsArrayOperation() {
-			var currentArray []jsonx.Change
-			jsonx.MustUnmarshal([]byte(currentChange.NewRecord), &currentArray)
-
-			for previousIndex := 0; previousIndex < currentIndex; previousIndex++ {
+			for previousIndex := currentIndex - 1; previousIndex >= 0; previousIndex-- {
 				previousChange := fieldChanges[previousIndex]
-				if previousChange.OperationType.IsArrayOperation() {
-					var previousArray []jsonx.Change
-					jsonx.MustUnmarshal([]byte(previousChange.NewRecord), &previousArray)
 
-					for _, currentItem := range currentArray {
-						for _, previousItem := range previousArray {
-							if isCrossCheckViolation(currentItem, previousItem) {
-								timeDifference := currentChange.CreatedDate.Sub(previousChange.CreatedDate).Milliseconds()
-								if checkThreshold(a.concurrentEventThresholdMilliseconds, timeDifference) {
-									preCreatedDate := helper.FormatTimeStamp(previousChange.CreatedDate)
-									message := fmt.Sprintf("%s:Field '%s':'%s' %s in event id %d on %s, "+
-										"but '%s' %s in event id %d on %s",
-										"AF", path, processInputValue(previousItem.Value,
-											a.isScanReportMask), previousItem.ChangeType(),
-										previousChange.SourceEventId, preCreatedDate,
-										processInputValue(currentItem.Value, a.isScanReportMask),
-										currentItem.ChangeType(),
-										currentChange.SourceEventId, helper.FormatTimeStamp(currentChange.CreatedDate))
+				timeDifference := currentChange.CreatedDate.Sub(previousChange.CreatedDate).Milliseconds()
+				if !previousChange.OperationType.IsArrayOperation() || !checkThreshold(a.concurrentEventTimeLimit,
+					timeDifference) {
+					continue
+				}
 
-									v := Violation{
-										sourceEventId:            currentChange.SourceEventId,
-										previousEventCreatedDate: preCreatedDate,
-										previousEventUserId:      previousChange.UserId,
-										message:                  message,
-									}
-									violations = append(violations, v)
-								}
+				var currentArray, previousArray []jsonx.Change
+				jsonx.MustUnmarshal([]byte(currentChange.NewRecord), &currentArray)
+				jsonx.MustUnmarshal([]byte(previousChange.NewRecord), &previousArray)
+
+				for _, currentItem := range currentArray {
+					for _, previousItem := range previousArray {
+						if isCrossCheckViolation(currentItem, previousItem) {
+							preCreatedDate := helper.FormatTimeStamp(previousChange.CreatedDate)
+							message := fmt.Sprintf("%s:Field '%s':'%s' %s in event id %d on %s, "+
+								"but '%s' %s in event id %d on %s",
+								"AF", path, processInputValue(previousItem.Value,
+									a.isScanReportMask), previousItem.ChangeType(),
+								previousChange.SourceEventId, preCreatedDate,
+								processInputValue(currentItem.Value, a.isScanReportMask),
+								currentItem.ChangeType(),
+								currentChange.SourceEventId, helper.FormatTimeStamp(currentChange.CreatedDate))
+
+							v := Violation{
+								sourceEventId:            currentChange.SourceEventId,
+								previousEventCreatedDate: preCreatedDate,
+								previousEventUserId:      previousChange.UserId,
+								message:                  message,
 							}
+							violations = append(violations, v)
 						}
 					}
 				}

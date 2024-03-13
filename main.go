@@ -7,12 +7,14 @@ import (
 	"ccd-comparator-data-diff-rapid/domain"
 	"ccd-comparator-data-diff-rapid/helper"
 	"ccd-comparator-data-diff-rapid/internal/store"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -31,6 +33,8 @@ func main() {
 	fmt.Printf("Using the target configuration file: %s\n", *configFile)
 
 	configurations := loadConfig(*configFile)
+	validateConfigurations(*configurations)
+	printConfigurations(*configurations)
 
 	initiateLogger(configurations.Level, configurations.Type)
 	defer elapsed("Execution")()
@@ -44,6 +48,33 @@ func main() {
 	service := domain.NewService(configurations, &activeRules, queryRepo, saveRepo)
 
 	orchestrateEventComparisons(service, configurations)
+}
+
+func validateConfigurations(c config.Configurations) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Fatal().Msgf("Validation error: %s", r)
+		}
+	}()
+
+	// Check period start time
+	if isEmpty(c.Period.StartTime) {
+		log.Fatal().Msg("Validation error: Period start time is empty. Please provide a valid start time.")
+	} else {
+		helper.MustParseTime("", c.Period.StartTime)
+	}
+
+	// Check Jurisdiction and CaseId
+	if isEmpty(c.Jurisdiction) && isEmpty(c.CaseId) {
+		log.Fatal().Msg("Validation error: Either Jurisdiction or CaseId must be set. Please provide one of them.")
+	}
+}
+
+func isEmpty(value string) bool {
+	if len(strings.TrimSpace(value)) == 0 {
+		return true
+	}
+	return false
 }
 
 func loadConfig(configFile string) *config.Configurations {
@@ -181,6 +212,29 @@ func readCSVIntoMap(csvFilePath string) map[string][]string {
 	}
 
 	return csvDataMap
+}
+
+func maskPassword(config string) string {
+	pattern := `"Password":\s*"[^"]*"`
+
+	r, err := regexp.Compile(pattern)
+	if err != nil {
+		panic(err)
+	}
+
+	return r.ReplaceAllString(config, `"Password": "***"`)
+}
+
+func printConfigurations(s interface{}) {
+	var p []byte
+	p, err := json.MarshalIndent(s, "", "\t")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	configString := fmt.Sprintf("%s", p)
+	maskedConfigString := maskPassword(configString)
+	fmt.Println(maskedConfigString)
 }
 
 func elapsed(msg string) func() {
