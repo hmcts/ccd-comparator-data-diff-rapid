@@ -7,26 +7,28 @@ database:
   driver: postgres
   sslmode: disable
   batchSize: 100
+  eventDataTable: event_data_report
 period:
-  startTime: "2023-01-01T09:00:00.000" # considered GMT
-  endTime:   "2023-04-18T09:59:59.000"
-  searchWindow: 1 # Search results for days
+  startTime: "2024-02-14T15:00:00.000" # considered GMT
+  endTime:   "2024-02-14T16:25:00.000" # considered GMT
 worker:
   pool: 30
 rule:
-  active: "samevalueafterchange,fieldchangecount"
+  active: "staticfieldchange,arrayfieldchange"
 scan:
   jurisdiction: BEFTA_JURISDICTION_3
   caseType: BEFTA_CASETYPE_3_2
+  caseId:
+  maxEventProcessCount: 5000
   batchSize: 100
   concurrent:
     event:
-      thresholdMilliseconds: 10000
+      thresholdMilliseconds: 120000
   fieldChange:
     threshold: 25
   report:
     enabled: true
-    includeEmptyChange: false
+    includeEmptyChange: true
     maskValue: false
     includeNoChange: false
 log:

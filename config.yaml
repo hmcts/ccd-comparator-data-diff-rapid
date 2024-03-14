@@ -18,15 +18,17 @@ rule:
 scan:
   jurisdiction: BEFTA_JURISDICTION_3  # Jurisdiction for scanning
   caseType: BEFTA_CASETYPE_3_1 # Case type for scanning
+  caseId:
+  maxEventProcessCount: 3000
   batchSize: 30
   concurrent:
     event:
-      thresholdMilliseconds: 10000 # Threshold time in milliseconds for concurrent events. Set to -1 to disable threshold
+      thresholdMilliseconds: 300000 # Threshold time in milliseconds for concurrent events. Set to -1 to disable threshold
   fieldChange:
     threshold: 25 # Threshold for field change detection
   report:
     enabled: true # Enable or disable report generation
-    includeEmptyChange: false
+    includeEmptyChange: true
     maskValue: false # Mask sensitive values in the report
     includeNoChange: false
 log:
