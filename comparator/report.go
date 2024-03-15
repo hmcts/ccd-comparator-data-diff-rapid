@@ -10,10 +10,11 @@ import (
 )
 
 type EventDataReportEntity struct {
-	ID                       int64         `db:"id"`
-	EventID                  int64         `db:"event_id"`
+	Id                       int64         `db:"id"`
+	EventId                  int64         `db:"event_id"`
+	PreviousEventId          int64         `db:"previous_event_id"`
 	EventName                string        `db:"event_name"`
-	CaseTypeID               string        `db:"case_type_id"`
+	CaseTypeId               string        `db:"case_type_id"`
 	Reference                string        `db:"reference"`
 	FieldName                string        `db:"field_name"`
 	ChangeType               string        `db:"change_type"`
@@ -45,20 +46,29 @@ func PrepareReportEntities(eventDifferences map[string][]EventFieldChange, analy
 		caseReference := parts[0]
 		fieldName := parts[1]
 
-		for _, eventFieldDiff := range fieldDifferences {
+		for i, eventFieldDiff := range fieldDifferences {
+			var preIndex int
 			if configurations.Report.IncludeNoChange || eventFieldDiff.OperationType != NoChange {
-				entity := EventDataReportEntity{}
+				preIndex = i
 				violation := analyzeResult.Get(combinedReference, eventFieldDiff.SourceEventId)
 
 				var previousEventCreatedDate time.Time
 				var previousUserId string
+				var previousEventId int64
 				var message string
 				var delta time.Duration
 
 				if violation.sourceEventId != 0 {
 					previousEventCreatedDate = helper.MustParseTime("", violation.previousEventCreatedDate)
 					previousUserId = violation.previousEventUserId
+					previousEventId = violation.previousEventId
 					message = violation.message
+					delta = time.Duration(eventFieldDiff.CreatedDate.Sub(previousEventCreatedDate).Milliseconds())
+				} else if preIndex > 0 {
+					previousChange := fieldDifferences[preIndex-1]
+					previousEventCreatedDate = previousChange.CreatedDate
+					previousUserId = previousChange.UserId
+					previousEventId = previousChange.SourceEventId
 					delta = time.Duration(eventFieldDiff.CreatedDate.Sub(previousEventCreatedDate).Milliseconds())
 				}
 
@@ -68,9 +78,12 @@ func PrepareReportEntities(eventDifferences map[string][]EventFieldChange, analy
 						oldRecord = eventFieldDiff.OldRecord
 						newRecord = eventFieldDiff.NewRecord
 					}
-					entity.EventID = eventFieldDiff.SourceEventId
+
+					entity := EventDataReportEntity{}
+					entity.EventId = eventFieldDiff.SourceEventId
+					entity.PreviousEventId = previousEventId
 					entity.EventName = eventFieldDiff.SourceEventName
-					entity.CaseTypeID = eventFieldDiff.CaseTypeId
+					entity.CaseTypeId = eventFieldDiff.CaseTypeId
 					entity.Reference = caseReference
 					entity.FieldName = fieldName
 					entity.ChangeType = string(eventFieldDiff.OperationType)

@@ -165,7 +165,7 @@ func (s Service) compareAndSaveEvents(workerId int, wg *sync.WaitGroup, workers 
 			continue
 		}
 
-		if len(cases) > s.configuration.MaxEventProcessCount {
+		if s.configuration.MaxEventProcessCount > 0 && len(cases) > s.configuration.MaxEventProcessCount {
 			dataExceeded := fmt.Sprintf("tid:%s - The threshold for event count (%d) has been exceeded for caseId: %s."+
 				"The process will proceed uninterrupted...", w.transactionId, len(cases), w.caseIds)
 			log.Warn().Msg(dataExceeded)

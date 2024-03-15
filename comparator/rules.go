@@ -13,6 +13,7 @@ type Rule interface {
 
 type Violation struct {
 	sourceEventId            int64
+	previousEventId          int64
 	previousEventCreatedDate string
 	previousEventUserId      string
 	message                  string
@@ -70,6 +71,7 @@ func (r StaticFieldChangeRule) CheckForViolation(fieldName string, fieldChanges 
 								currentChange.NewRecord, currentChange.SourceEventId, currentChange.CreatedDate)
 							v := Violation{
 								sourceEventId:            currentChange.SourceEventId,
+								previousEventId:          previousChange.SourceEventId,
 								previousEventCreatedDate: preCreatedDate,
 								previousEventUserId:      previousChange.UserId,
 								message:                  message,
@@ -146,6 +148,7 @@ func (a ArrayFieldChangeRule) CheckForViolation(path string, fieldChanges []Even
 
 							v := Violation{
 								sourceEventId:            currentChange.SourceEventId,
+								previousEventId:          previousChange.SourceEventId,
 								previousEventCreatedDate: preCreatedDate,
 								previousEventUserId:      previousChange.UserId,
 								message:                  message,
