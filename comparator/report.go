@@ -46,10 +46,9 @@ func PrepareReportEntities(eventDifferences map[string][]EventFieldChange, analy
 		caseReference := parts[0]
 		fieldName := parts[1]
 
+		var changeIndex int
 		for i, eventFieldDiff := range fieldDifferences {
-			var preIndex int
 			if configurations.Report.IncludeNoChange || eventFieldDiff.OperationType != NoChange {
-				preIndex = i
 				violation := analyzeResult.Get(combinedReference, eventFieldDiff.SourceEventId)
 
 				var previousEventCreatedDate time.Time
@@ -64,13 +63,15 @@ func PrepareReportEntities(eventDifferences map[string][]EventFieldChange, analy
 					previousEventId = violation.previousEventId
 					message = violation.message
 					delta = time.Duration(eventFieldDiff.CreatedDate.Sub(previousEventCreatedDate).Milliseconds())
-				} else if preIndex > 0 {
-					previousChange := fieldDifferences[preIndex-1]
+				} else if i > 0 {
+					previousChange := fieldDifferences[changeIndex]
 					previousEventCreatedDate = previousChange.CreatedDate
 					previousUserId = previousChange.UserId
 					previousEventId = previousChange.SourceEventId
 					delta = time.Duration(eventFieldDiff.CreatedDate.Sub(previousEventCreatedDate).Milliseconds())
 				}
+
+				changeIndex = i
 
 				if configurations.Report.IncludeEmptyChange || message != "" {
 					var oldRecord, newRecord string
