@@ -43,10 +43,11 @@ func (s saveRepository) saveAllEventDataReport(batchSize int, eventDataTable str
 			fmt.Sprintf(`INSERT INTO %s (
 			event_id, event_name, case_type_id, reference, field_name, change_type,
 			old_record, new_record, previous_event_created_date, event_created_date,
-			analyze_result_detail, potential_risk, previous_event_user_id, event_user_id, event_delta)
+			analyze_result_detail, potential_risk, previous_event_user_id, event_user_id, 
+            event_delta, previous_event_id)
 		VALUES (:event_id, :event_name, :case_type_id, :reference, :field_name, :change_type, :old_record, :new_record,
 			:previous_event_created_date, :event_created_date, :analyze_result, :potential_risk, 
-		        :previous_event_user_id, :event_user_id, :event_delta)`, eventDataTable), batch)
+		        :previous_event_user_id, :event_user_id, :event_delta, :previous_event_id)`, eventDataTable), batch)
 
 		if err != nil {
 			_ = tx.Rollback()

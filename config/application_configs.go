@@ -30,9 +30,8 @@ type Database struct {
 }
 
 type Period struct {
-	StartTime    string
-	EndTime      string
-	SearchWindow int
+	StartTime string
+	EndTime   string
 }
 
 type Worker struct {

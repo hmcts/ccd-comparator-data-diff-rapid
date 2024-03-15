@@ -57,14 +57,14 @@ package comparator
 //	}
 //
 //	entity := entities[0]
-//	if entity.EventID != 123 {
-//		t.Errorf("TestSaveReport: Expected EventID 123, but got %d", entity.EventID)
+//	if entity.EventId != 123 {
+//		t.Errorf("TestSaveReport: Expected EventId 123, but got %d", entity.EventId)
 //	}
 //	if entity.EventName != "Event1" {
 //		t.Errorf("TestSaveReport: Expected EventName 'Event1', but got '%s'", entity.EventName)
 //	}
-//	if entity.CaseTypeID != "YOUR_CASE_TYPE_ID" { // Replace with your expected case jsonx ID
-//		t.Errorf("TestSaveReport: Expected CaseTypeID 'YOUR_CASE_TYPE_ID', but got '%s'", entity.CaseTypeID)
+//	if entity.CaseTypeId != "YOUR_CASE_TYPE_ID" { // Replace with your expected case jsonx Id
+//		t.Errorf("TestSaveReport: Expected CaseTypeId 'YOUR_CASE_TYPE_ID', but got '%s'", entity.CaseTypeId)
 //	}
 //	if entity.Reference != "Case1" {
 //		t.Errorf("TestSaveReport: Expected Reference 'Case1', but got '%s'", entity.Reference)
