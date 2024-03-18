@@ -20,10 +20,11 @@ type EventDataReportEntity struct {
 	ChangeType               string        `db:"change_type"`
 	OldRecord                string        `db:"old_record"`
 	NewRecord                string        `db:"new_record"`
+	ArrayChangeRecord        string        `db:"array_change_record"`
 	PreviousEventCreatedDate time.Time     `db:"previous_event_created_date"`
 	EventCreatedDate         time.Time     `db:"event_created_date"`
 	AnalyzeResult            string        `db:"analyze_result"`
-	PotentialRisk            bool          `db:"potential_risk"`
+	RuleMatched              bool          `db:"rule_matched"`
 	PreviousEventUserId      string        `db:"previous_event_user_id"`
 	EventUserId              string        `db:"event_user_id"`
 	EventDelta               time.Duration `db:"event_delta"`
@@ -56,13 +57,17 @@ func PrepareReportEntities(eventDifferences map[string][]EventFieldChange, analy
 				var previousEventId int64
 				var message string
 				var delta time.Duration
+				isArrayChange := false
 
 				if violation.sourceEventId != 0 {
 					previousEventCreatedDate = helper.MustParseTime("", violation.previousEventCreatedDate)
 					previousUserId = violation.previousEventUserId
 					previousEventId = violation.previousEventId
-					message = violation.message
+					message = string(violation.ruleType) + ":" + violation.message
 					delta = time.Duration(eventFieldDiff.CreatedDate.Sub(previousEventCreatedDate).Milliseconds())
+					if violation.ruleType == RuleTypeArrayFieldChange {
+						isArrayChange = true
+					}
 				} else if i > 0 {
 					previousChange := fieldDifferences[changeIndex]
 					previousEventCreatedDate = previousChange.CreatedDate
@@ -88,12 +93,16 @@ func PrepareReportEntities(eventDifferences map[string][]EventFieldChange, analy
 					entity.Reference = caseReference
 					entity.FieldName = fieldName
 					entity.ChangeType = string(eventFieldDiff.OperationType)
-					entity.OldRecord = stripBytes(oldRecord)
-					entity.NewRecord = stripBytes(newRecord)
+					if isArrayChange {
+						entity.ArrayChangeRecord = stripBytes(newRecord)
+					} else {
+						entity.OldRecord = stripBytes(oldRecord)
+						entity.NewRecord = stripBytes(newRecord)
+					}
 					entity.PreviousEventCreatedDate = previousEventCreatedDate
 					entity.EventCreatedDate = eventFieldDiff.CreatedDate
 					entity.AnalyzeResult = stripBytes(message)
-					entity.PotentialRisk = message != ""
+					entity.RuleMatched = message != ""
 					entity.EventUserId = eventFieldDiff.UserId
 					entity.PreviousEventUserId = previousUserId
 					entity.EventDelta = delta

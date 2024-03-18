@@ -54,8 +54,7 @@ func parseActiveAnalyzeRules(activeAnalyzeRules string) map[RuleType]bool {
 
 	ruleNames := strings.Split(activeAnalyzeRules, ",")
 	for _, name := range ruleNames {
-		name = strings.TrimSpace(name)
-		if ruleType, ok := ruleTypeFromString(name); ok {
+		if ruleType, ok := ruleTypeFromString(strings.TrimSpace(name)); ok {
 			ruleMap[ruleType] = true
 		}
 	}
@@ -80,11 +79,11 @@ func (f RuleFactory) GetEnabledRuleList() []Rule {
 	return f.enabledRuleList
 }
 
-type RuleType int
+type RuleType string
 
 const (
-	RuleTypeUnknown RuleType = iota
-	RuleTypeStaticFieldChange
-	RuleTypeFieldChangeCount
-	RuleTypeArrayFieldChange
+	RuleTypeUnknown           RuleType = ""
+	RuleTypeStaticFieldChange          = "staticfieldchange"
+	RuleTypeFieldChangeCount           = "fieldchangecount"
+	RuleTypeArrayFieldChange           = "arrayfieldchange"
 )

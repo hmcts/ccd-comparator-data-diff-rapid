@@ -16,28 +16,33 @@ type Violation struct {
 	previousEventId          int64
 	previousEventCreatedDate string
 	previousEventUserId      string
+	ruleType                 RuleType
 	message                  string
 }
 
 type StaticFieldChangeRule struct {
 	concurrentEventTimeLimit int64
 	isScanReportMask         bool
+	ruleType                 RuleType
 }
 
 type FieldChangeCountRule struct {
 	fieldChangeThreshold int
+	ruleType             RuleType
 }
 
 type ArrayFieldChangeRule struct {
 	concurrentEventTimeLimit int64
 	isScanReportMask         bool
 	searchStartTime          time.Time
+	ruleType                 RuleType
 }
 
 func NewStaticFieldChangeRule(concurrentEventTimeLimit int64, isScanReportMask bool) *StaticFieldChangeRule {
 	return &StaticFieldChangeRule{
 		concurrentEventTimeLimit: concurrentEventTimeLimit,
 		isScanReportMask:         isScanReportMask,
+		ruleType:                 RuleTypeStaticFieldChange,
 	}
 }
 
@@ -47,11 +52,12 @@ func NewArrayFieldChangeRule(concurrentEventTimeLimit int64, isScanReportMask bo
 		concurrentEventTimeLimit: concurrentEventTimeLimit,
 		isScanReportMask:         isScanReportMask,
 		searchStartTime:          searchStartTime,
+		ruleType:                 RuleTypeArrayFieldChange,
 	}
 }
 
 func NewFieldChangeCountRule(fieldChangeThreshold int) *FieldChangeCountRule {
-	return &FieldChangeCountRule{fieldChangeThreshold}
+	return &FieldChangeCountRule{fieldChangeThreshold, RuleTypeFieldChangeCount}
 }
 
 func (r StaticFieldChangeRule) CheckForViolation(fieldName string, fieldChanges []EventFieldChange) []Violation {
@@ -66,14 +72,18 @@ func (r StaticFieldChangeRule) CheckForViolation(fieldName string, fieldChanges 
 						timeDifference := currentChange.CreatedDate.Sub(previousChange.CreatedDate).Milliseconds()
 						if checkThreshold(r.concurrentEventTimeLimit, timeDifference) {
 							preCreatedDate := helper.FormatTimeStamp(previousChange.CreatedDate)
-							message := generateViolationMessage("SV", fieldName, previousChange.NewRecord,
-								previousChange.SourceEventId, r.isScanReportMask, preCreatedDate,
-								currentChange.NewRecord, currentChange.SourceEventId, currentChange.CreatedDate)
+							message := fmt.Sprintf("Field '%s' changed to '%s' in event id %d on %s, "+
+								"but reverted back to the previous value '%s' in event id %d on %s",
+								fieldName, processInputValue(previousChange.NewRecord, r.isScanReportMask),
+								previousChange.SourceEventId, preCreatedDate,
+								processInputValue(currentChange.NewRecord, r.isScanReportMask), currentChange.SourceEventId,
+								helper.FormatTimeStamp(currentChange.CreatedDate))
 							v := Violation{
 								sourceEventId:            currentChange.SourceEventId,
 								previousEventId:          previousChange.SourceEventId,
 								previousEventCreatedDate: preCreatedDate,
 								previousEventUserId:      previousChange.UserId,
+								ruleType:                 r.ruleType,
 								message:                  message,
 							}
 							violations = append(violations, v)
@@ -100,6 +110,7 @@ func (f FieldChangeCountRule) CheckForViolation(fieldName string, fieldChanges [
 			v := Violation{
 				sourceEventId: difference.SourceEventId,
 				message:       message,
+				ruleType:      f.ruleType,
 			}
 			violations = append(violations, v)
 		}
@@ -137,9 +148,9 @@ func (a ArrayFieldChangeRule) CheckForViolation(path string, fieldChanges []Even
 					for _, previousItem := range previousArray {
 						if isCrossCheckViolation(currentItem, previousItem) {
 							preCreatedDate := helper.FormatTimeStamp(previousChange.CreatedDate)
-							message := fmt.Sprintf("%s:Field '%s':'%s' %s in event id %d on %s, "+
+							message := fmt.Sprintf("Field '%s':'%s' %s in event id %d on %s, "+
 								"but '%s' %s in event id %d on %s",
-								"AF", path, processInputValue(previousItem.Value,
+								path, processInputValue(previousItem.Value,
 									a.isScanReportMask), previousItem.ChangeType(),
 								previousChange.SourceEventId, preCreatedDate,
 								processInputValue(currentItem.Value, a.isScanReportMask),
@@ -151,6 +162,7 @@ func (a ArrayFieldChangeRule) CheckForViolation(path string, fieldChanges []Even
 								previousEventId:          previousChange.SourceEventId,
 								previousEventCreatedDate: preCreatedDate,
 								previousEventUserId:      previousChange.UserId,
+								ruleType:                 a.ruleType,
 								message:                  message,
 							}
 							violations = append(violations, v)
@@ -166,17 +178,6 @@ func (a ArrayFieldChangeRule) CheckForViolation(path string, fieldChanges []Even
 
 func isCrossCheckViolation(current jsonx.Change, previous jsonx.Change) bool {
 	return current.Compare(previous) && current.HasCrossMatch(previous)
-}
-
-func generateViolationMessage(code, path, previousChangeRecord string, previousChangeEventId int64,
-	isScanReportMask bool, preCreatedDate string, currentChangeRecord string, currentChangeEventId int64,
-	currentChangeDate time.Time) string {
-	return fmt.Sprintf("%s:Field '%s' changed to '%s' in event id %d on %s, "+
-		"but reverted back to the previous value '%s' in event id %d on %s",
-		code, path, processInputValue(previousChangeRecord, isScanReportMask),
-		previousChangeEventId, preCreatedDate,
-		processInputValue(currentChangeRecord, isScanReportMask), currentChangeEventId,
-		helper.FormatTimeStamp(currentChangeDate))
 }
 
 func processInputValue(input string, isScanReportMask bool) string {
