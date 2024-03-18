@@ -14,9 +14,10 @@ create TABLE IF NOT EXISTS public.event_data_report (
     event_delta bigint,
     old_record text,
     new_record text,
+    array_change_record text,
     analyze_result_detail text,
     change_type VARCHAR(255),
-    potential_risk BOOLEAN NOT NULL DEFAULT FALSE,
+    rule_matched BOOLEAN NOT NULL DEFAULT FALSE,
     case_type_id VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
