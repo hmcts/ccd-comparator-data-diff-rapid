@@ -47,12 +47,18 @@ func (r queryRepository) findCasesByEventsInImpactPeriod(comparison Comparison) 
 	args = append(args, comparison.Jurisdiction)
 
 	if comparison.CaseTypeId != "" {
-		query += " AND cd.case_type_id = $" + strconv.Itoa(len(args)+1)
-		args = append(args, comparison.CaseTypeId)
+		caseTypeIds := strings.Split(comparison.CaseTypeId, ",")
+		query += " AND cd.case_type_id IN ("
+		for i := range caseTypeIds {
+			args = append(args, caseTypeIds[i])
+			query += "$" + strconv.Itoa(len(args)) + ","
+		}
+		query = query[:len(query)-1] + ")"
 	}
 
-	query += ` AND ce.created_date >= $` + strconv.Itoa(len(args)+1) + `
-                        AND ce.created_date <= $` + strconv.Itoa(len(args)+2) + `
+	argsCount := len(args)
+	query += ` AND ce.created_date >= $` + strconv.Itoa(argsCount+1) + `
+                        AND ce.created_date <= $` + strconv.Itoa(argsCount+2) + `
                     GROUP BY cd.id 
                     HAVING COUNT(ce.id) > 1
                     ORDER BY cd.id`
@@ -60,9 +66,8 @@ func (r queryRepository) findCasesByEventsInImpactPeriod(comparison Comparison) 
 	args = append(args, comparison.StartTime, comparison.SearchPeriodEndTime)
 
 	err := r.db.Select(&caseIDs, query, args...)
-
 	if err != nil {
-		return nil, errors.Wrap(err, "error while retrieving caseIDs in findCasesByJurisdictionInImpactPeriod()")
+		return nil, errors.Wrap(err, "error while retrieving caseIDs in findCasesByEventsInImpactPeriod()")
 	}
 
 	return caseIDs, nil
