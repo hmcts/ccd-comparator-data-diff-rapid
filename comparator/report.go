@@ -119,6 +119,7 @@ func stripBytes(value string) string {
 	data := []byte(value)
 	data = bytes.Replace(data, []byte{0xe2, 0x27, 0x20}, []byte{}, -1)
 	data = bytes.Replace(data, []byte{0xe2, 0x80, 0x27}, []byte{}, -1)
+	data = bytes.Replace(data, []byte{0xe2, 0x27}, []byte{}, -1)
 
 	return string(data)
 }
