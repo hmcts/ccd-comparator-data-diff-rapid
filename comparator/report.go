@@ -14,6 +14,7 @@ type EventDataReportEntity struct {
 	EventId                  int64         `db:"event_id"`
 	PreviousEventId          int64         `db:"previous_event_id"`
 	EventName                string        `db:"event_name"`
+	PreviousEventName        string        `db:"previous_event_name"`
 	CaseTypeId               string        `db:"case_type_id"`
 	Reference                string        `db:"reference"`
 	FieldName                string        `db:"field_name"`
@@ -55,6 +56,7 @@ func PrepareReportEntities(eventDifferences map[string][]EventFieldChange, analy
 				var previousEventCreatedDate time.Time
 				var previousUserId string
 				var previousEventId int64
+				var previousEventName string
 				var message string
 				var delta time.Duration
 				isArrayChange := false
@@ -63,6 +65,7 @@ func PrepareReportEntities(eventDifferences map[string][]EventFieldChange, analy
 					previousEventCreatedDate = helper.MustParseTime("", violation.previousEventCreatedDate)
 					previousUserId = violation.previousEventUserId
 					previousEventId = violation.previousEventId
+					previousEventName = violation.previousEventName
 					message = string(violation.ruleType) + ":" + violation.message
 					delta = time.Duration(eventFieldDiff.CreatedDate.Sub(previousEventCreatedDate).Milliseconds())
 					if violation.ruleType == RuleTypeArrayFieldChange {
@@ -73,6 +76,7 @@ func PrepareReportEntities(eventDifferences map[string][]EventFieldChange, analy
 					previousEventCreatedDate = previousChange.CreatedDate
 					previousUserId = previousChange.UserId
 					previousEventId = previousChange.SourceEventId
+					previousEventName = previousChange.SourceEventName
 					delta = time.Duration(eventFieldDiff.CreatedDate.Sub(previousEventCreatedDate).Milliseconds())
 				}
 
@@ -88,6 +92,7 @@ func PrepareReportEntities(eventDifferences map[string][]EventFieldChange, analy
 					entity := EventDataReportEntity{}
 					entity.EventId = eventFieldDiff.SourceEventId
 					entity.PreviousEventId = previousEventId
+					entity.PreviousEventName = previousEventName
 					entity.EventName = eventFieldDiff.SourceEventName
 					entity.CaseTypeId = eventFieldDiff.CaseTypeId
 					entity.Reference = caseReference

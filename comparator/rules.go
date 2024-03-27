@@ -18,6 +18,7 @@ type Violation struct {
 	previousEventUserId      string
 	ruleType                 RuleType
 	message                  string
+	previousEventName        string
 }
 
 type StaticFieldChangeRule struct {
@@ -83,6 +84,7 @@ func (r StaticFieldChangeRule) CheckForViolation(fieldName string, fieldChanges 
 								previousEventId:          previousChange.SourceEventId,
 								previousEventCreatedDate: preCreatedDate,
 								previousEventUserId:      previousChange.UserId,
+								previousEventName:        previousChange.SourceEventName,
 								ruleType:                 r.ruleType,
 								message:                  message,
 							}
@@ -162,6 +164,7 @@ func (a ArrayFieldChangeRule) CheckForViolation(path string, fieldChanges []Even
 								previousEventId:          previousChange.SourceEventId,
 								previousEventCreatedDate: preCreatedDate,
 								previousEventUserId:      previousChange.UserId,
+								previousEventName:        previousChange.SourceEventName,
 								ruleType:                 a.ruleType,
 								message:                  message,
 							}

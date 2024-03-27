@@ -44,10 +44,11 @@ func (s saveRepository) saveAllEventDataReport(batchSize int, eventDataTable str
 			event_id, event_name, case_type_id, reference, field_name, change_type,
 			old_record, new_record, array_change_record, previous_event_created_date, event_created_date,
 			analyze_result_detail, rule_matched, previous_event_user_id, event_user_id, 
-            event_delta, previous_event_id)
+            event_delta, previous_event_id, previous_event_name)
 		VALUES (:event_id, :event_name, :case_type_id, :reference, :field_name, :change_type, :old_record, :new_record,
 			:array_change_record, :previous_event_created_date, :event_created_date, :analyze_result, :rule_matched, 
-		        :previous_event_user_id, :event_user_id, :event_delta, :previous_event_id)`, eventDataTable), batch)
+		        :previous_event_user_id, :event_user_id, :event_delta, :previous_event_id, :previous_event_name)`,
+				eventDataTable), batch)
 
 		if err != nil {
 			_ = tx.Rollback()
